@@ -83,88 +83,182 @@ pub(crate) fn solve_corner_lines2(
     v_pos + ux * (a0x + t * d1.0) + uy * (a0y + t * d1.1)
 }
 
-/// Inward OFFSET LINE of a directed half-edge `he` seen from vertex `v` (one of its endpoints): the
-/// edge's own line shifted by `w` inside the face to its left, in that face's plane. Independent
-/// construction: with the face normal `n` (CCW winding) the interior lies to the LEFT of travel,
-/// i.e. along `n × dir`. Returns `(point_on_line_nearest_v, unit_edge_dir)`; `None` on a boundary or
-/// degenerate half-edge.
+/// 3D line–line meet (Blender `isect_line_line_v3`): the point where infinite lines a0→a1 and b0→b1
+/// intersect, or the MIDPOINT of their closest approach when SKEW. `a0` if parallel. Unlike
+/// `solve_corner_lines` (2D in-plane) this works when the two offset lines are NOT coplanar (degree>3 miter).
+pub(crate) fn isect_lines_3d(a0: Vec3, a1: Vec3, b0: Vec3, b1: Vec3) -> Vec3 {
+    let da = a1 - a0;
+    let db = b1 - b0;
+    let n = da.cross(db);
+    let denom = n.length_squared();
+    if denom < 1e-12 { return a0; }
+    let dc = b0 - a0;
+    let t = dc.cross(db).dot(n) / denom;
+    let s = dc.cross(da).dot(n) / denom;
+    0.5 * ((a0 + da * t) + (b0 + db * s))
+}
+
+/// Closest point on the infinite line `p0 + t·pd` to the infinite line `q0 + s·qd`
+/// (Blender `project_to_edge` via `isect_line_line_v3`: the point ON the FIRST line nearest the second).
+/// Falls back to `p0` when the two directions are parallel. Used to place the miter-weld profile's
+/// middle control point — the closest point on the beveled edge to the segment between the two BoundVerts.
+pub(crate) fn closest_point_line_line(p0: Vec3, pd: Vec3, q0: Vec3, qd: Vec3) -> Vec3 {
+    let w0 = p0 - q0;
+    let a = pd.dot(pd);
+    let b = pd.dot(qd);
+    let c = qd.dot(qd);
+    let d = pd.dot(w0);
+    let e = qd.dot(w0);
+    let denom = a * c - b * b;
+    if denom.abs() < 1e-12 { return p0; }
+    let t = (b * e - c * d) / denom;
+    p0 + pd * t
+}
+
+/// Intersect the line `p0 + t·pd` with the plane through `plane_co` with normal `plane_no`
+/// (Blender `isect_line_plane_v3`). Returns `p0` when the line is parallel to the plane.
+pub(crate) fn isect_line_plane(p0: Vec3, pd: Vec3, plane_co: Vec3, plane_no: Vec3) -> Vec3 {
+    let denom = pd.dot(plane_no);
+    if denom.abs() < 1e-12 { return p0; }
+    p0 + pd * ((plane_co - p0).dot(plane_no) / denom)
+}
+
+/// Inward OFFSET LINE of a beveled directed half-edge `he` at corner `v`: rail point `v + inward*w` plus
+/// the edge direction, `inward` = STEP-1's centroid-sign-fixed in-plane perpendicular. Returns
+/// `(rail_point_at_v, edge_dir)` for `isect_lines_3d`; `None` on a boundary/degenerate half-edge.
 pub(crate) fn inward_offset_line(mesh: &HalfEdgeMesh, orig_pos: &[Vec3], he: HalfEdgeId, v: u32, w: f32) -> Option<(Vec3, Vec3)> {
-    let h = mesh.he(he);
-    if h.face == NO_FACE { return None; }
-    let a = orig_pos[mesh.he_source(he).0 as usize];
-    let b = orig_pos[h.vertex.0 as usize];
-    let dir = (b - a).normalize_or_zero();
-    let n = mesh.compute_face_normal(h.face).normalize_or_zero();
-    if dir == Vec3::ZERO || n == Vec3::ZERO { return None; }
-    let inward = n.cross(dir).normalize_or_zero();
-    if inward == Vec3::ZERO { return None; }
-    Some((orig_pos[v as usize] + inward * w, dir))
+    let f = mesh.he(he).face;
+    if f == NO_FACE { return None; }
+    let s = orig_pos[mesh.he_source(he).0 as usize];
+    let d = orig_pos[mesh.he(he).vertex.0 as usize];
+    let edge_dir = (d - s).normalize_or_zero();
+    if edge_dir.length_squared() < 1e-12 { return None; }
+    let normal = mesh.compute_face_normal(f);
+    let inward = normal.cross(edge_dir).normalize_or_zero();
+    if inward.length_squared() < 1e-12 { return None; }
+    // `normal × edge_dir` already points into the face (interior = LEFT of the directed ring
+    // boundary; Newell normal is winding-consistent) — valid for CONCAVE faces too, where the old
+    // centroid flip picked the wrong side (see the STEP-1 note; the 90° staircase bug).
+    Some((orig_pos[v as usize] + inward * w, edge_dir))
 }
 
-/// Meeting point of two 3D lines `p0 + s·pd` and `q0 + t·qd`: the intersection when they cross, else
-/// the midpoint of their closest approach (standard two-line closest-point solve). For parallel lines
-/// (no unique meet) the midpoint of the two anchor points is returned.
-pub(crate) fn lines_meet_3d(p0: Vec3, pd: Vec3, q0: Vec3, qd: Vec3) -> Vec3 {
-    let r = p0 - q0;
-    let (a, b, c) = (pd.dot(pd), pd.dot(qd), qd.dot(qd));
-    let (d, e) = (pd.dot(r), qd.dot(r));
-    let den = a * c - b * b;
-    if den.abs() < 1e-12 * (a * c).max(1e-30) { return (p0 + q0) * 0.5; }
-    let s = (b * e - c * d) / den;
-    let t = (a * e - b * d) / den;
-    ((p0 + pd * s) + (q0 + qd * t)) * 0.5
+/// Blender LOOP SLIDE (`offset_on_edge_between`): pin the miter BoundVert ONTO the single non-beveled
+/// between-edge `emid` (slide `0.5·(w/sin a1 + w/sin a2)` along it) instead of the floating 3D rail meet.
+/// The slide distance is CLAMPED to the emid edge length (Blender `slide_dist`) — w/sin is unbounded for an
+/// acute corner and would overshoot past the far vertex. `None` on a degenerate (parallel/straight) corner.
+pub(crate) fn loop_slide_meet(v: Vec3, e1_far: Vec3, e2_far: Vec3, emid_far: Vec3, w: f32, v_no: Vec3) -> Option<Vec3> {
+    loop_slide_meet2(v, e1_far, e2_far, emid_far, w, w, v_no)
 }
 
-/// Orthogonal projection of `meet` onto the segment `v → far` (parameter clamped to the segment).
-/// This pins a boundary vertex ONTO the single un-bevelled edge lying between two bevelled ones, so
-/// it stays on the original surface. `None` for a zero-length edge.
-pub(crate) fn project_meet_onto_edge(v: Vec3, meet: Vec3, far: Vec3) -> Option<Vec3> {
-    let e = far - v;
-    let len2 = e.length_squared();
-    if len2 <= 1e-20 { return None; }
-    let t = ((meet - v).dot(e) / len2).clamp(0.0, 1.0);
-    Some(v + e * t)
+/// Blender `offset_meet(..., edges_between = true)` (BEVEL.md §3.2, last line): take the two beveled
+/// edges' RAIL MEET — the point they would share if the between-edge were not there — and PROJECT it
+/// onto that between-edge. One BoundVert, shared by both rails.
+///
+/// This is the rule, measured (BEVEL.md §11 2026-08-15): the projection reproduces Blender exactly on
+/// a box stretched to sx ∈ {0.5, 1, 2, 3} with a flat diagonal across its top face — (0.44,−0.88,1),
+/// (0.9,−0.9,1), (1.88,−0.94,1), (2.88,−0.96,1) — while [`loop_slide_meet2`]'s averaged
+/// `0.5·(w/sin a1 + w/sin a2)` matches ONLY at the symmetric sx=1, where every rule coincides.
+/// Sliding each rail independently (`rail_endpoint_pos`'s terminal slide) yields TWO points instead
+/// of one, which is what broke the corner rim into a non-chained ring.
+///
+/// The slide is clamped to the between-edge length (Blender `slide_dist`) and to `t >= 0`, so an
+/// obtuse corner whose meet projects BEHIND `v` still lands on the edge rather than off the far end.
+pub(crate) fn project_meet_onto_edge(v: Vec3, meet: Vec3, emid_far: Vec3) -> Option<Vec3> {
+    let emid_vec = emid_far - v;
+    let emid_len = emid_vec.length();
+    if emid_len < 1e-6 { return None; }
+    let emid_dir = emid_vec / emid_len;
+    let t = (meet - v).dot(emid_dir).clamp(0.0, (emid_len - 50.0 * 1e-6).max(0.0));
+    Some(v + emid_dir * t)
 }
 
-/// Is `p` inside the angular wedge at `v` of a face with normal `n` (CCW), bounded by the direction
-/// to `next_far` (where the wedge starts) rotating counter-clockwise about `n` to the direction to
-/// `prev_far`? 2° slack at both edges. All directions are taken from `v`.
-pub(crate) fn point_in_wedge(p: Vec3, v: Vec3, n: Vec3, next_far: Vec3, prev_far: Vec3) -> bool {
-    let d0 = (next_far - v).normalize_or_zero();
-    let d1 = (prev_far - v).normalize_or_zero();
-    let x = (p - v).normalize_or_zero();
-    if d0 == Vec3::ZERO || d1 == Vec3::ZERO || x == Vec3::ZERO { return false; }
-    let ang = |u: Vec3| -> f32 {
-        let mut a = n.dot(d0.cross(u)).atan2(d0.dot(u));
-        if a < 0.0 { a += std::f32::consts::TAU; }
-        a
+/// Per-edge-width variant (adjust_offsets): slide = 0.5·(w1/sin a1 + w2/sin a2).
+pub(crate) fn loop_slide_meet2(v: Vec3, e1_far: Vec3, e2_far: Vec3, emid_far: Vec3, w1: f32, w2: f32, v_no: Vec3) -> Option<Vec3> {
+    let e1_dir = (e1_far - v).normalize_or_zero();
+    let e2_dir = (e2_far - v).normalize_or_zero();
+    let emid_vec = emid_far - v;
+    let emid_len = emid_vec.length();
+    let emid_dir = emid_vec.normalize_or_zero();
+    let _ = v_no; // Blender's reflex guard is outside-CCW; our vertex_fan is inside-CCW → sign inverts, drop it.
+    let corner_sin = |d1: Vec3, d2: Vec3| -> Option<f32> {
+        let ang = d1.dot(d2).clamp(-1.0, 1.0).acos();
+        const GOOD: f32 = 0.01;
+        if ang < GOOD || (ang - std::f32::consts::PI).abs() < GOOD { return None; }
+        let s = ang.sin();
+        if s < 1e-4 { None } else { Some(s) }
     };
-    let slack = 2.0f32.to_radians();
-    let (ax, a1) = (ang(x), ang(d1));
-    ax <= a1 + slack || ax >= std::f32::consts::TAU - slack
+    let s1 = corner_sin(e1_dir, emid_dir)?;
+    let s2 = corner_sin(emid_dir, e2_dir)?;
+    let d = (0.5 * (w1 / s1 + w2 / s2)).min((emid_len - 50.0 * 1e-6).max(0.0));
+    Some(v + emid_dir * d)
 }
 
-/// Re-pin a floating boundary point onto the surface when 2+ un-bevelled edges lie between two
-/// bevelled ones: orthogonally project `meet` onto the plane (through `v`) of each intermediate face
-/// of the span, in order, and accept the first projection that falls inside that face's wedge at `v`.
-/// `fan` is the vertex fan, `i`/`j` the fan indices of the bracketing bevelled edges (fan order); the
-/// intermediate faces are those between consecutive between-edges. Keeps `meet` when none accepts.
-pub(crate) fn drop_onto_faces(mesh: &HalfEdgeMesh, orig_pos: &[Vec3], v: u32, fan: &[HalfEdgeId], i: usize, j: usize, meet: Vec3) -> Vec3 {
-    let n_fan = fan.len();
-    let vp = orig_pos[v as usize];
-    let span = (j + n_fan - i) % n_fan;
-    for s in (i + 1)..(i + span.saturating_sub(1)) {
-        let (e_a, e_b) = (fan[s % n_fan], fan[(s + 1) % n_fan]);
-        let face = mesh.he(e_b).face;      // the face shared by consecutive fan edges
-        if face == NO_FACE { continue; }
-        let n = mesh.compute_face_normal(face).normalize_or_zero();
-        if n == Vec3::ZERO { continue; }
-        let p = meet - n * n.dot(meet - vp);
-        let far = |h: HalfEdgeId| orig_pos[mesh.he(h).vertex.0 as usize];
-        if point_in_wedge(p, vp, n, far(e_b), far(e_a)) { return p; }
-    }
-    meet
+/// Blender `point_between_edges`: is `co` inside the angular sector between edges (far ends `e1_far`,
+/// `e2_far`) seen from `v` on a face with outward normal `f_no`? SIGNED wedge test (angles promoted to
+/// [0,2π) via `cross(·)·f_no`), 2° slack. Gates the drop-onto-face. All dirs point TOWARD `v`.
+pub(crate) fn point_between_edges(co: Vec3, v: Vec3, f_no: Vec3, e1_far: Vec3, e2_far: Vec3) -> bool {
+    let dir1 = (v - e1_far).normalize_or_zero();
+    let dir2 = (v - e2_far).normalize_or_zero();
+    let dirco = (v - co).normalize_or_zero();
+    let two_pi = std::f32::consts::TAU;
+    let mut ang11 = dir1.dot(dir2).clamp(-1.0, 1.0).acos();
+    let mut ang1co = dir1.dot(dirco).clamp(-1.0, 1.0).acos();
+    if dir1.cross(dir2).dot(f_no) < 0.0 { ang11 = two_pi - ang11; }
+    if dir1.cross(dirco).dot(f_no) < 0.0 { ang1co = two_pi - ang1co; }
+    (ang11 - ang1co) > -0.0349
 }
+
+/// Blender `offset_meet(edges_between=true)` DROP-ONTO-FACE: for ≥2 between-edges the floating skew rail
+/// meet hangs off the surface; re-pin it by PERPENDICULARLY projecting onto each intermediate face plane
+/// (through `v`) and accepting the first whose wedge (`point_between_edges`) contains it. Keeps the float
+/// if none accept. The wedge face of fan-consecutive `fan[k]`/`fan[k+1]` is resolved DIRECTLY as their
+/// shared face — the old `he(fan[k+1]).face` shortcut assumed a fan winding that inverts on some meshes
+/// (the octahedron k=2-adjacent corner: every drop got wedge-rejected against the WRONG face and the
+/// float survived at 1.33·|v| off-surface; Blender's drop lands (−0.0544,−0.0544,0.8911), oracle-exact).
+pub(crate) fn drop_onto_faces(mesh: &HalfEdgeMesh, orig_pos: &[Vec3], v: u32, fan: &[HalfEdgeId], i: usize, j: usize, meetco: Vec3) -> Vec3 {
+    let n = fan.len();
+    if n == 0 { return meetco; }
+    let vpos = orig_pos[v as usize];
+    let far = |h: HalfEdgeId| orig_pos[mesh.he(h).vertex.0 as usize];
+    // Shared face of two consecutive fan edges — winding-free (checks both sides of each half-edge).
+    let faces_of = |h: HalfEdgeId| -> [FaceId; 2] {
+        let t = mesh.he(h).twin;
+        [mesh.he(h).face, if t != NO_TWIN { mesh.he(t).face } else { NO_FACE }]
+    };
+    let shared_face = |a: HalfEdgeId, b: HalfEdgeId| -> Option<FaceId> {
+        let fb = faces_of(b);
+        faces_of(a).into_iter()
+            .find(|&f| f != NO_FACE && (f == fb[0] || f == fb[1]))
+    };
+    let mut k = i;
+    while k != j {
+        let e = fan[k];
+        let enext = fan[(k + 1) % n];
+        if let Some(f) = shared_face(e, enext) {
+            let f_no = mesh.compute_face_normal(f);
+            if f_no.length_squared() > 1e-12 {
+                let dropco = meetco - f_no * (meetco - vpos).dot(f_no);
+                // Orient the wedge so it contains the FACE INTERIOR (centroid): the signed wedge
+                // promotion in `point_between_edges` depends on fan handedness (inside- vs outside-CCW
+                // — the §11 reflex-guard trap), which inverted a 60° face corner into a 300° wedge that
+                // swallowed the un-dropped float. The face centroid defines the interior, winding-free.
+                let fv = mesh.face_vertices(f);
+                let cen: Vec3 = fv.iter().map(|x| orig_pos[x.0 as usize]).sum::<Vec3>() / fv.len().max(1) as f32;
+                let (a_far, b_far) = if point_between_edges(cen, vpos, f_no, far(e), far(enext)) {
+                    (far(e), far(enext))
+                } else {
+                    (far(enext), far(e))
+                };
+                if point_between_edges(dropco, vpos, f_no, a_far, b_far) {
+                    return dropco;
+                }
+            }
+        }
+        k = (k + 1) % n;
+    }
+    meetco
+}
+
 /// Quadratic Bézier point: `a`=start, `c`=control, `b`=end, at `t ∈ [0,1]`. The rounded-bevel profile
 /// pulls the control toward the ORIGINAL edge vertex, bulging the flat chord into a convex fillet.
 #[inline]
@@ -173,9 +267,9 @@ pub(crate) fn quad_bezier(a: Vec3, c: Vec3, b: Vec3, t: f32) -> Vec3 {
     a * (u * u) + c * (2.0 * u * t) + b * (t * t)
 }
 
-/// CIRCULAR bevel profile (superellipse exponent 2): the quarter ELLIPSE through `a_l` (t=0)
+/// CIRCULAR bevel profile (Blender's Superellipse profile=0.5): the quarter ELLIPSE through `a_l` (t=0)
 /// and `a_r` (t=1) in the parallelogram frame (centre = a_l + a_r − apex; p(θ) = c + cosθ·(a_l−c) +
-/// sinθ·(a_r−c)) — the affine image of the unit circle in the corner parallelogram (independent derivation).
+/// sinθ·(a_r−c)) — Blender's `make_unit_square_map` profile, the same form the chain-weld oracles decoded.
 /// For symmetric perpendicular legs (a plain cube edge) this IS the circular arc (all golden oracles
 /// unchanged). Crucially it NEVER leaves the (ua, ub) parallelogram: the previous slerp + radius-lerp
 /// construction swept OUTSIDE it for strongly ASYMMETRIC legs (one rail loop-slid 10× the other along a
