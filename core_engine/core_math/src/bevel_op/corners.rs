@@ -4,47 +4,88 @@
 
 use glam::Vec3;
 use std::collections::{HashMap, HashSet};
-use crate::half_edge::{HalfEdgeMesh, HalfEdgeId, NO_FACE, NO_TWIN};
+use crate::half_edge::{HalfEdgeMesh, HalfEdgeId, NO_TWIN};
 use super::{
-    drop_onto_faces, inward_offset_line, lines_meet_3d,
+    drop_onto_faces, inward_offset_line, isect_line_plane, isect_lines_3d, loop_slide_meet2,
     project_meet_onto_edge,
 };
 
-/// Rounded two-edge miter arc: the profile that bridges the two boundary points `a` and `b` left by a
-/// vertex `orig` where exactly two bevelled edges meet. Independent implementation from the published
-/// Lamé-curve (superellipse) definition: the profile is the affine image of the unit superellipse
-/// `x^n + y^n = 1` (quarter, first quadrant) in the parallelogram spanned at the sharp corner `orig`
-/// by its two legs `orig→a` and `orig→b`; the curve's centre is the opposite corner `a + b − orig`.
-/// `shape = 0.5` gives `n = 2` (a circle in that frame, sampled at equal angles). The exponent is
-/// derived from where the curve crosses the unit-square diagonal (`r = 2^(−1/n)`): `r = 0.5`
-/// (straight chord, `n = 1`) at `shape = 0`, `r = 1/√2` at `0.5`, `r → 1` (square corner, `n → ∞`)
-/// at `shape = 1`, piecewise linear in between.
-/// Returns `ns+1` points from `a` (i=0) to `b` (i=ns). `edge_far` fixes the bevelled edge direction and
-/// is only used to keep the signature stable for callers (the arc lies in the plane of `a`, `orig`, `b`).
+/// ROUNDED 2-EDGE MITER arc — the **M_NONE weld** profile of Blender's `bmesh_bevel.cc` (§3.7). At a
+/// degree>3 vertex where exactly two beveled edges meet, the flat miter is a single shared edge between two
+/// BoundVerts (`a`,`b`); rounding it (segments>1) bridges those two BoundVerts with a circular profile arc
+/// welded from BOTH edges' profiles (co-planarized onto ONE plane, so the two arcs coincide — zero corner
+/// grid, `ns−1` shared interior verts). This is a **clean-room reimplementation** of Blender's exact
+/// construction (`set_profile_params` + `move_weld_profile_planes` + `calculate_profile_segments`), verified
+/// vertex-for-vertex against the oracle:
+///  1. `middle` = closest point on the beveled edge line (`orig`→`edge_far`) to the segment `a`–`b`
+///     (`project_to_edge`).
+///  2. Map each superellipse sample `(x,y)` (profile 0.5 ⇒ even-angle circle) through the unit-square map
+///     `co = x·(mid−a) + y·(mid−b) + (a+b−mid)` (`make_unit_square_map`, `z=0`).
+///  3. Project `co` ALONG the edge direction `proj_dir` onto the WELD plane (`plane_co=a`,
+///     `plane_no = (orig−a)×(orig−b)` from `move_weld_profile_planes`) — this is the step that turns the
+///     unit-square (parabola-like) point into the true circular fillet point.
+/// Returns `ns+1` points from `a` (i=0) to `b` (i=ns). `shape` blends flat(0)↔circular(0.5)↔convex(1) like
+/// the single-edge STEP-2.5 profile so non-default shapes degrade the same way.
 pub(crate) fn miter_weld_arc(a: Vec3, b: Vec3, orig: Vec3, edge_far: Vec3, ns: usize, shape: f32) -> Vec<Vec3> {
-    let _ = edge_far;
-    let ns = ns.max(1);
-    let straight = |out: &mut Vec<Vec3>| { for i in 0..=ns { out.push(a.lerp(b, i as f32 / ns as f32)); } };
     let mut out = Vec::with_capacity(ns + 1);
-    // Corner on the chord: nothing to round (a flat bend) — equal thirds along a–b.
-    let ab = b - a;
-    let ab_len2 = ab.length_squared();
-    if ab_len2 <= 1e-12 { straight(&mut out); return out; }
-    let t = (orig - a).dot(ab) / ab_len2;
-    if (orig - (a + ab * t)).length_squared() < 1e-8 * ab_len2 { straight(&mut out); return out; }
-    // Exponent from the diagonal-crossing ratio.
-    let s = shape.clamp(0.0, 1.0);
-    let r = if s <= 0.5 { 0.5 + s * (std::f32::consts::FRAC_1_SQRT_2 - 0.5) / 0.5 }
-            else { std::f32::consts::FRAC_1_SQRT_2 + (s - 0.5) / 0.5 * (1.0 - std::f32::consts::FRAC_1_SQRT_2) };
-    let r = r.clamp(0.5, 0.999);
-    let n_exp = (0.5f32).ln() / r.ln();          // Lamé exponent
-    let centre = a + b - orig;
-    let (ua, ub) = (a - centre, b - centre);
+    // FLAT-miter degenerate (Blender parity): when V lies ON the a–b line the miter site is planar —
+    // a knife-chain bend across a FLAT face (dihedral π): the two offset intersections straddle V
+    // collinearly. Blender's profile has no curvature to round there and emits the straight segment
+    // (oracle knife_chain_seg3: interior verts are exact thirds of a–b). The superellipse below would
+    // bow it (~0.01 off oracle).
+    {
+        let ab = b - a;
+        let ab_len2 = ab.length_squared();
+        if ab_len2 > 1e-12 {
+            let t = (orig - a).dot(ab) / ab_len2;
+            let on_line = orig - (a + ab * t);
+            if on_line.length_squared() < 1e-8 * ab_len2 {
+                for i in 0..=ns { out.push(a.lerp(b, i as f32 / ns as f32)); }
+                return out;
+            }
+        }
+    }
+    let proj_dir = (edge_far - orig).normalize_or_zero();
+    let edge_dir = proj_dir;
+    // Profile CONTROL POINT = V itself. Inverting the unit-square map on BOTH oracles
+    // (owner_ring gentle bend AND the pyramid rounded 2-edge miter) recovers M = orig to
+    // 3-4 decimals. The old `closest_point_line_line(edge, chord)` only COINCIDED with V on
+    // the pyramid (chord far from the edge line); at a gentle pass-through bend it slid the
+    // anchor onto the chord → zero bow → the owner's "segments too straight" (2026-07-23).
+    let middle = orig;
+    let mut plane_no = (orig - a).cross(orig - b);
+    if plane_no.length_squared() < 1e-14 { plane_no = Vec3::ZERO; } else { plane_no = plane_no.normalize(); }
+    // In-plane bend: the projection direction is (nearly) PARALLEL to the weld plane —
+    // isect_line_plane is degenerate there; the unmapped unit-square point is already exact
+    // (oracle-verified at the owner bend). Disable the projection instead of amplifying noise.
+    if proj_dir.dot(plane_no).abs() < 1e-3 { plane_no = Vec3::ZERO; }
+    let plane_co = a;
+    let d_am = middle - a;
+    let d_bm = middle - b;
+    let cst = a + b - middle;
+    let half = std::f32::consts::FRAC_PI_2;
     for i in 0..=ns {
-        let th = std::f32::consts::FRAC_PI_2 * i as f32 / ns as f32;
-        let (sx, sy) = if i == 0 { (1.0, 0.0) } else if i == ns { (0.0, 1.0) }
-            else { (th.cos().powf(2.0 / n_exp), th.sin().powf(2.0 / n_exp)) };
-        out.push(centre + ua * sx + ub * sy);
+        if i == 0 { out.push(a); continue; }
+        if i == ns { out.push(b); continue; }
+        let ang = (i as f32 / ns as f32) * half;
+        // Superellipse profile 0.5 (r=2, circle): even-angle x=sin, y=cos so i=0→(0,1)→a, i=ns→(1,0)→b.
+        let (x, y) = (ang.sin(), ang.cos());
+        let co2d = d_am * x + d_bm * y + cst;
+        // Project along the edge onto the weld plane → the circular fillet point (Blender's key step).
+        let circ = if plane_no.length_squared() > 0.5 && proj_dir.length_squared() > 0.5 {
+            isect_line_plane(co2d, proj_dir, plane_co, plane_no)
+        } else {
+            co2d
+        };
+        // Shape blend, matching STEP 2.5: 0=flat chord, 0.5=circular fillet, 1=convex.
+        let t = i as f32 / ns as f32;
+        let flat = a.lerp(b, t);
+        let p = if shape <= 0.5 {
+            flat.lerp(circ, shape * 2.0)
+        } else {
+            circ + (circ - flat) * ((shape - 0.5) * 2.0)
+        };
+        out.push(p);
     }
     out
 }
@@ -159,78 +200,84 @@ pub(crate) fn inner_miter_patch(
 pub(crate) fn inner_miter_wall_split(ns: usize) -> usize {
     ns / 2
 }
-/// Boundary construction at a bevelled vertex `v` (independent implementation from planar
-/// offset-line geometry). Walk the closed vertex fan; each consecutive pair of bevelled edges gets
-/// ONE boundary vertex that both of their rails end at, placed so it stays on the original surface:
-///  * no un-bevelled edge between the pair: the pair's rails lie in one face plane and simply cross;
-///  * exactly one between: their (generally skew) rail meet is projected onto that edge;
-///  * two or more: the floating rail meet is dropped onto the first intermediate face plane whose
-///    corner wedge contains it.
-/// `v` is then removed and replaced by that ring. Returns `(boundverts, rail_override[(he, v)]→pos,
-/// corner_bv[ce]→pos, miter_arc)`. Boundary vertex `k` belongs to the span from the k-th to the
-/// (k+1)-th bevelled fan edge; every face corner `ce` (outgoing from `v`) inside that span maps to it,
-/// and the two rails flanking a bevelled edge end at the boundary vertices of the spans on each side.
-/// `miter_arc` is `Some` only for a ROUNDED (`ns>1`) two-boundary-vertex miter: the `ns+1` profile
-/// points from `boundverts[0]` to `boundverts[1]` ([`miter_weld_arc`]). Fails closed (empty result)
-/// on an open fan, fewer than two bevelled edges, or degenerate geometry.
+
+/// Blender `build_boundary` (clean-room, FLAT/SHARP) for a MITER vertex `v`: walk the CCW fan, and for each
+/// consecutive beveled pair place a BoundVert per Blender's decision tree — 0 between-edges → coplanar rail
+/// meet; exactly 1 → loop slide onto it; ≥2 → floating rail meet then drop-onto-face. `v` is deleted and
+/// replaced by the BoundVert ring. Returns `(boundverts, rail_override[(he,v)]→pos, corner_bv[ce]→pos,
+/// miter_arc)`: STEP 2 welds each rail to its BoundVert; STEP 3 replaces the corner with `corner_bv[ce]`
+/// (ce.leftv). `miter_arc` is `Some(chain)` ONLY for a ROUNDED (`ns>1`) 2-BoundVert miter — the `ns+1`
+/// welded profile points bridging the two BoundVerts (the M_NONE weld, §3.7); `None` otherwise (flat or
+/// N-way, which stays a bare edge / M_POLY cap). The chain runs from `boundverts[0]` to `boundverts[1]`.
 pub(crate) fn build_boundary_flat(
     mesh: &HalfEdgeMesh, v: u32, beveled_he: &HashSet<u32>, orig_pos: &[Vec3],
     w_of: &dyn Fn(u32) -> f32,
     ns: usize, shape: f32,
 ) -> (Vec<Vec3>, HashMap<(u32, u32), Vec3>, HashMap<u32, Vec3>, Option<Vec<Vec3>>) {
-    let empty = || (Vec::new(), HashMap::new(), HashMap::new(), None);
-    let fan = mesh.vertex_fan(crate::half_edge::VertexId(v));
-    let n = fan.len();
-    if n < 2 { return empty(); }
-    // Closed fan only: stepping past the last edge must come back to the first.
-    let last_twin = mesh.he(fan[n - 1]).twin;
-    if last_twin == NO_TWIN || mesh.he(last_twin).next != fan[0] { return empty(); }
-    if fan.iter().any(|&h| mesh.he(h).twin == NO_TWIN || mesh.he(h).face == NO_FACE) { return empty(); }
-    let bev_idx: Vec<usize> = (0..n).filter(|&i| beveled_he.contains(&fan[i].0)).collect();
-    let m = bev_idx.len();
-    if m < 2 { return empty(); }
-    let vpos = orig_pos[v as usize];
-
-    let mut boundverts: Vec<Vec3> = Vec::with_capacity(m);
-    for k in 0..m {
-        let (i1, i2) = (bev_idx[k], bev_idx[(k + 1) % m]);
-        let between = (i2 + n - i1) % n - 1;
-        let (e1, e2) = (fan[i1], fan[i2]);
-        let tw1 = mesh.he(e1).twin;
-        let (l1, l2) = match (
-            inward_offset_line(mesh, orig_pos, tw1, v, w_of(tw1.0)),
-            inward_offset_line(mesh, orig_pos, e2, v, w_of(e2.0)),
-        ) {
-            (Some(a), Some(b)) => (a, b),
-            _ => return empty(),
-        };
-        let meet = lines_meet_3d(l1.0, l1.1, l2.0, l2.1);
-        let pos = match between {
-            0 => meet,
-            1 => {
-                let emid = fan[(i1 + 1) % n];
-                project_meet_onto_edge(vpos, meet, orig_pos[mesh.he(emid).vertex.0 as usize]).unwrap_or(meet)
-            }
-            _ => drop_onto_faces(mesh, orig_pos, v, &fan, i1, i2, meet),
-        };
-        boundverts.push(pos);
-    }
-
+    let mut boundverts: Vec<Vec3> = Vec::new();
     let mut rail_override: HashMap<(u32, u32), Vec3> = HashMap::new();
     let mut corner_bv: HashMap<u32, Vec3> = HashMap::new();
-    for k in 0..m {
-        let e = fan[bev_idx[k]];
-        rail_override.insert((mesh.he(e).twin.0, v), boundverts[k]);                 // right face: span k
-        rail_override.insert((e.0, v), boundverts[(k + m - 1) % m]);                // left face: span k-1
-        let (i1, i2) = (bev_idx[k], bev_idx[(k + 1) % m]);
-        for s in 0..((i2 + n - i1) % n) {
-            corner_bv.insert(fan[(i1 + s + 1) % n].0, boundverts[k]);
+    let fan = mesh.vertex_fan(crate::half_edge::VertexId(v));
+    let n = fan.len();
+    if n == 0 { return (boundverts, rail_override, corner_bv, None); }
+    let bev_idx: Vec<usize> = (0..n).filter(|&i| beveled_he.contains(&fan[i].0)).collect();
+    if bev_idx.len() < 2 { return (boundverts, rail_override, corner_bv, None); }
+
+    let vpos = orig_pos[v as usize];
+    let v_no = mesh.compute_vertex_normal(crate::half_edge::VertexId(v));
+    let far = |h: HalfEdgeId| orig_pos[mesh.he(h).vertex.0 as usize];
+    for a in 0..bev_idx.len() {
+        let i = bev_idx[a];
+        let j = bev_idx[(a + 1) % bev_idx.len()];
+        let e1 = fan[i];
+        let e2 = fan[j];
+        let twin_e1 = mesh.he(e1).twin;
+        if twin_e1 == NO_TWIN { continue; }
+        let rail_meet = || match (
+            inward_offset_line(mesh, orig_pos, twin_e1, v, w_of(twin_e1.0)),
+            inward_offset_line(mesh, orig_pos, e2, v, w_of(e2.0)),
+        ) {
+            (Some((a0, adir)), Some((b0, bdir))) => Some(isect_lines_3d(a0, a0 + adir, b0, b0 + bdir)),
+            _ => None,
+        };
+        let between = (j + n - i) % n; // fan steps e1→e2; between-edges = between-1
+        let bv = if between == 1 {
+            rail_meet()
+        } else if between == 2 {
+            // ONE unbeveled edge between the two beveled ones. Blender takes the rail MEET and
+            // PROJECTS it onto that edge (§3.2) — both rails then share ONE BoundVert. Measured
+            // vertex-exact against the oracle at sx ∈ {0.5,1,2,3} (§11 2026-08-15); the older
+            // averaged `loop_slide_meet2` agrees only in the symmetric case and is kept as the
+            // fallback for when the rails are too degenerate to meet at all.
+            let emid = fan[(i + 1) % n];
+            rail_meet()
+                .and_then(|m| project_meet_onto_edge(vpos, m, far(emid)))
+                .or_else(|| loop_slide_meet2(vpos, far(e1), far(e2), far(emid),
+                                             w_of(e1.0), w_of(e2.0), v_no))
+        } else {
+            rail_meet().map(|m| drop_onto_faces(mesh, orig_pos, v, &fan, i, j, m))
+        };
+        let bv = match bv { Some(p) => p, None => continue };
+        boundverts.push(bv);
+        rail_override.insert((twin_e1.0, v), bv);
+        rail_override.insert((e2.0, v), bv);
+        let sector_len = (j + n - i) % n;
+        for step in 1..=sector_len {
+            corner_bv.insert(fan[(i + step) % n].0, bv);
         }
     }
-    let arc = if m == 2 && ns > 1 {
-        Some(miter_weld_arc(boundverts[0], boundverts[1], vpos, vpos, ns, shape))
-    } else { None };
-    (boundverts, rail_override, corner_bv, arc)
+    // ROUNDED 2-EDGE MITER (M_NONE weld, §3.7): with exactly two BoundVerts and segments>1, bridge them
+    // with the co-planarized profile arc. `boundverts[0]` and `[1]` are the two miter corners; the beveled
+    // edge whose direction defines the weld profile is `fan[bev_idx[0]]` (either edge gives the SAME welded
+    // chain — Blender co-planarizes both onto one plane). N-way (>2 BoundVerts) stays flat here (its M_POLY
+    // cap is STEP 5b); the M_ADJ rounded grid is a separate future task (§9).
+    let miter_arc = if ns > 1 && boundverts.len() == 2 {
+        let edge_far = far(fan[bev_idx[0]]);
+        Some(miter_weld_arc(boundverts[0], boundverts[1], vpos, edge_far, ns, shape))
+    } else {
+        None
+    };
+    (boundverts, rail_override, corner_bv, miter_arc)
 }
 
 /// Recessed CENTER for a k=1 PARTIAL corner at a degree>3 far-endpoint (Blender `offset_on_edge_between`,

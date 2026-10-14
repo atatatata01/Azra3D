@@ -3,7 +3,8 @@
 > **Licensing provenance note (2026-10-14).** Earlier sections of this file record that parts of
 > the bevel were ported from Blender's GPL source ("verbatim" ports). Those ports are being replaced
 > by independent implementations; see `docs/legal/CLEAN_ROOM_LOG.md` for what was replaced, what
-> remains, and how. Historical text below is kept as written. **Do not read or port Blender's
+> remains, and how. The bevel itself (`core_math/src/bevel_op/`) is **not yet replaced**: that work
+> is deferred until the tool is feature-complete. Historical text below is kept as written. **Do not read or port Blender's
 > bevel source for any further work**; use behavioural comparison with Blender's output only.
 
 > **This is a multi-month, high-difficulty task.** Matching Blender's bevel exactly is one of the
