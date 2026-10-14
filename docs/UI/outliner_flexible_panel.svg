@@ -1,0 +1,317 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="760" viewBox="0 0 1180 760" fill="none">
+  <defs>
+    <style>
+      .page { fill: #161719; }
+      .panel { fill: #232427; stroke: #34363a; }
+      .top { fill: #292b2f; }
+      .field { fill: #1c1d20; stroke: #34363a; }
+      .row { fill: #232427; }
+      .row-alt { fill: #252629; }
+      .row-selected { fill: #2d3740; }
+      .row-drop { fill: #292f32; stroke: #d89b36; stroke-width: 1; }
+      .line { stroke: #484b51; stroke-width: 1; }
+      .tree { stroke: #565a62; stroke-width: 1; }
+      .accent { fill: #d89b36; }
+      .accent-stroke { stroke: #d89b36; }
+      .text { fill: #d9dadd; font: 500 13px "Segoe UI", Arial, sans-serif; }
+      .muted { fill: #8f939a; font: 500 11px "Segoe UI", Arial, sans-serif; }
+      .small { fill: #a8abb1; font: 500 10px "Segoe UI", Arial, sans-serif; }
+      .title { fill: #eeeeef; font: 700 22px "Segoe UI", Arial, sans-serif; }
+      .caption { fill: #8f939a; font: 400 13px "Segoe UI", Arial, sans-serif; }
+      .mono { fill: #aeb3ba; font: 600 10px "Consolas", monospace; }
+      .blue { fill: #7ea5c9; }
+      .green { fill: #8dbb8d; }
+      .red { fill: #c77f7b; }
+      .violet { fill: #a99ac8; }
+      .icon { stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+
+    <symbol id="eye" viewBox="0 0 18 18">
+      <path class="icon" d="M2.3 9s2.4-3.8 6.7-3.8S15.7 9 15.7 9s-2.4 3.8-6.7 3.8S2.3 9 2.3 9Z"/>
+      <circle cx="9" cy="9" r="2" fill="currentColor"/>
+    </symbol>
+    <symbol id="lock" viewBox="0 0 18 18">
+      <rect class="icon" x="4.2" y="8" width="9.6" height="6.8" rx="1.4"/>
+      <path class="icon" d="M6.3 8V5.8a2.7 2.7 0 0 1 5.4 0V8"/>
+    </symbol>
+    <symbol id="box" viewBox="0 0 18 18">
+      <path class="icon" d="M9 2.5 15 6v6L9 15.5 3 12V6Z"/>
+      <path class="icon" d="M3 6l6 3.3L15 6M9 9.3v6.2"/>
+    </symbol>
+    <symbol id="body" viewBox="0 0 18 18">
+      <rect class="icon" x="3" y="3" width="12" height="12" rx="2.2"/>
+      <circle cx="9" cy="9" r="2.7" fill="currentColor" opacity=".45"/>
+    </symbol>
+    <symbol id="cylinder" viewBox="0 0 18 18">
+      <ellipse class="icon" cx="9" cy="5.2" rx="5.2" ry="2.2"/>
+      <path class="icon" d="M3.8 5.2v7.6M14.2 5.2v7.6"/>
+      <ellipse class="icon" cx="9" cy="12.8" rx="5.2" ry="2.2"/>
+    </symbol>
+    <symbol id="sphere" viewBox="0 0 18 18">
+      <circle class="icon" cx="9" cy="9" r="6.2"/>
+      <path class="icon" d="M3.4 9h11.2M9 2.8c1.6 1.7 2.4 3.8 2.4 6.2s-.8 4.5-2.4 6.2M9 2.8C7.4 4.5 6.6 6.6 6.6 9s.8 4.5 2.4 6.2"/>
+    </symbol>
+    <symbol id="camera" viewBox="0 0 18 18">
+      <rect class="icon" x="2.5" y="5.3" width="9.5" height="7.4" rx="1.4"/>
+      <path class="icon" d="M12 7.2 15.7 5v8l-3.7-2.2Z"/>
+    </symbol>
+    <symbol id="light" viewBox="0 0 18 18">
+      <circle class="icon" cx="9" cy="8" r="3"/>
+      <path class="icon" d="M9 2v1.8M9 12.2V14M3.8 3.6 5 4.8M13 4.8l1.2-1.2M3 8h1.8M13.2 8H15"/>
+    </symbol>
+  </defs>
+
+  <rect class="page" width="1180" height="760"/>
+  <text class="title" x="56" y="58">AZRA Outliner - Flexible Panel Concept</text>
+  <text class="caption" x="56" y="82">Single movable hierarchy. Compact header. Visible handles for resize, drag, reorder, and changing panel content.</text>
+
+  <g transform="translate(56 118)">
+    <rect class="panel" x="0" y="0" width="392" height="584" rx="6"/>
+
+    <!-- resize strip -->
+    <rect x="386" y="42" width="6" height="500" rx="3" fill="#303236"/>
+    <circle cx="389" cy="260" r="1.3" fill="#777b82"/>
+    <circle cx="389" cy="272" r="1.3" fill="#777b82"/>
+    <circle cx="389" cy="284" r="1.3" fill="#777b82"/>
+
+    <!-- compact top -->
+    <rect class="top" x="1" y="1" width="390" height="36" rx="6"/>
+    <g transform="translate(10 10)">
+      <circle cx="2" cy="2" r="1.5" fill="#7f838a"/>
+      <circle cx="8" cy="2" r="1.5" fill="#7f838a"/>
+      <circle cx="14" cy="2" r="1.5" fill="#7f838a"/>
+      <circle cx="2" cy="8" r="1.5" fill="#7f838a"/>
+      <circle cx="8" cy="8" r="1.5" fill="#7f838a"/>
+      <circle cx="14" cy="8" r="1.5" fill="#7f838a"/>
+    </g>
+    <text class="text" x="38" y="24">Outliner</text>
+    <rect x="108" y="8" width="78" height="20" rx="3" fill="#1f2124" stroke="#3a3d42"/>
+    <text class="small" x="122" y="22">Scene Graph</text>
+    <path d="M173 16l4 4 4-4" stroke="#8f939a" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="278" y="8" width="24" height="20" rx="3" fill="#303236"/>
+    <text class="small" x="287" y="22">+</text>
+    <rect x="308" y="8" width="24" height="20" rx="3" fill="#303236"/>
+    <path d="M315 18h10M315 14h10M315 22h6" stroke="#a8abb1" stroke-width="1.2"/>
+    <rect x="338" y="8" width="24" height="20" rx="3" fill="#303236"/>
+    <path d="M345 14h10M347 18h6M349 22h2" stroke="#a8abb1" stroke-width="1.2"/>
+
+    <!-- search is compact, not a big section -->
+    <rect class="field" x="10" y="46" width="372" height="28" rx="4"/>
+    <text class="muted" x="26" y="64">Search / filter all items</text>
+
+    <rect x="0" y="84" width="392" height="22" fill="#292b2f"/>
+    <text class="small" x="18" y="99">V</text>
+    <text class="small" x="46" y="99">L</text>
+    <text class="small" x="88" y="99">Name</text>
+    <text class="small" x="324" y="99">Op</text>
+
+    <g transform="translate(0 110)">
+      <!-- All items are in one hierarchy. No separate sections. -->
+      <rect class="row" x="8" y="0" width="374" height="27"/>
+      <use href="#eye" x="16" y="4" width="18" height="18" color="#a8abb1"/>
+      <use href="#body" x="74" y="4" width="18" height="18" color="#d89b36"/>
+      <text class="text" x="100" y="18">Scene_Root</text>
+      <text class="mono" x="324" y="17">ROOT</text>
+
+      <path class="tree" d="M64 29v350M64 42h22"/>
+      <rect class="row-selected" x="8" y="28" width="374" height="27" rx="3"/>
+      <rect class="accent" x="8" y="28" width="3" height="27" rx="1.5"/>
+      <g transform="translate(22 36)">
+        <circle cx="2" cy="2" r="1.3" fill="#9ca0a6"/>
+        <circle cx="8" cy="2" r="1.3" fill="#9ca0a6"/>
+        <circle cx="2" cy="8" r="1.3" fill="#9ca0a6"/>
+        <circle cx="8" cy="8" r="1.3" fill="#9ca0a6"/>
+      </g>
+      <use href="#eye" x="42" y="32" width="18" height="18" color="#cfd3d8"/>
+      <use href="#body" x="94" y="32" width="18" height="18" color="#d89b36"/>
+      <text class="text" x="120" y="46">Hull_Body</text>
+      <text class="mono" x="324" y="45">UNI</text>
+
+      <path class="tree" d="M84 57v210M84 70h22"/>
+      <rect class="row-alt" x="8" y="56" width="374" height="27"/>
+      <g transform="translate(42 64)">
+        <circle cx="2" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="2" cy="8" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="8" r="1.3" fill="#777b82"/>
+      </g>
+      <use href="#eye" x="62" y="60" width="18" height="18" color="#a8abb1"/>
+      <use href="#box" x="114" y="60" width="18" height="18" color="#8dbb8d"/>
+      <text class="text" x="140" y="74">Hull_Base</text>
+
+      <path class="tree" d="M84 98h22"/>
+      <rect class="row" x="8" y="84" width="374" height="27"/>
+      <g transform="translate(42 92)">
+        <circle cx="2" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="2" cy="8" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="8" r="1.3" fill="#777b82"/>
+      </g>
+      <use href="#eye" x="62" y="88" width="18" height="18" color="#a8abb1"/>
+      <use href="#box" x="114" y="88" width="18" height="18" color="#a99ac8"/>
+      <text class="text" x="140" y="102">Hull_Bevel</text>
+      <text class="mono violet" x="324" y="101">SFT</text>
+
+      <path class="tree" d="M84 126h22"/>
+      <rect class="row-alt" x="8" y="112" width="374" height="27"/>
+      <g transform="translate(42 120)">
+        <circle cx="2" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="2" cy="8" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="8" r="1.3" fill="#777b82"/>
+      </g>
+      <use href="#eye" x="62" y="116" width="18" height="18" color="#a8abb1"/>
+      <use href="#cylinder" x="114" y="116" width="18" height="18" color="#c77f7b"/>
+      <text class="text" x="140" y="130">Engine_Cutout</text>
+      <text class="mono red" x="324" y="129">SUB</text>
+
+      <path class="tree" d="M84 154h22M104 154v98"/>
+      <rect class="row" x="8" y="140" width="374" height="27"/>
+      <g transform="translate(42 148)">
+        <circle cx="2" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="2" cy="8" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="8" r="1.3" fill="#777b82"/>
+      </g>
+      <use href="#eye" x="62" y="144" width="18" height="18" color="#a8abb1"/>
+      <use href="#body" x="114" y="144" width="18" height="18" color="#7ea5c9"/>
+      <text class="text" x="140" y="158">Turret_Scope</text>
+      <text class="mono blue" x="324" y="157">BODY</text>
+
+      <path class="tree" d="M104 182h22"/>
+      <rect class="row-alt" x="8" y="168" width="374" height="27"/>
+      <g transform="translate(62 176)">
+        <circle cx="2" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="2" cy="8" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="8" r="1.3" fill="#777b82"/>
+      </g>
+      <use href="#eye" x="82" y="172" width="18" height="18" color="#a8abb1"/>
+      <use href="#sphere" x="134" y="172" width="18" height="18" color="#a99ac8"/>
+      <text class="text" x="160" y="186">Turret_Dome</text>
+      <text class="mono violet" x="324" y="185">SFT</text>
+
+      <path class="tree" d="M104 210h22"/>
+      <rect class="row" x="8" y="196" width="374" height="27"/>
+      <g transform="translate(62 204)">
+        <circle cx="2" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="2" cy="8" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="8" r="1.3" fill="#777b82"/>
+      </g>
+      <use href="#eye" x="82" y="200" width="18" height="18" color="#a8abb1"/>
+      <use href="#cylinder" x="134" y="200" width="18" height="18" color="#8dbb8d"/>
+      <text class="text" x="160" y="214">Barrel_Main</text>
+
+      <path class="tree" d="M104 238h22"/>
+      <rect class="row-alt" x="8" y="224" width="374" height="27"/>
+      <g transform="translate(62 232)">
+        <circle cx="2" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="2" cy="8" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="8" r="1.3" fill="#777b82"/>
+      </g>
+      <use href="#eye" x="82" y="228" width="18" height="18" color="#a8abb1"/>
+      <use href="#cylinder" x="134" y="228" width="18" height="18" color="#c77f7b"/>
+      <text class="text" x="160" y="242">Barrel_Bore</text>
+      <text class="mono red" x="324" y="241">SUB</text>
+
+      <!-- mixed scene items can live anywhere -->
+      <path class="tree" d="M84 280h22"/>
+      <rect class="row-drop" x="8" y="266" width="374" height="27" rx="3"/>
+      <g transform="translate(42 274)">
+        <circle cx="2" cy="2" r="1.3" fill="#d89b36"/>
+        <circle cx="8" cy="2" r="1.3" fill="#d89b36"/>
+        <circle cx="2" cy="8" r="1.3" fill="#d89b36"/>
+        <circle cx="8" cy="8" r="1.3" fill="#d89b36"/>
+      </g>
+      <use href="#light" x="62" y="270" width="18" height="18" color="#bfa15d"/>
+      <text class="text" x="114" y="284">Key_Light</text>
+      <path class="accent-stroke" d="M110 294h210" stroke-width="2" stroke-linecap="round"/>
+
+      <path class="tree" d="M84 308h22"/>
+      <rect class="row" x="8" y="294" width="374" height="27"/>
+      <g transform="translate(42 302)">
+        <circle cx="2" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="2" cy="8" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="8" r="1.3" fill="#777b82"/>
+      </g>
+      <use href="#eye" x="62" y="298" width="18" height="18" color="#a8abb1"/>
+      <use href="#camera" x="114" y="298" width="18" height="18" color="#bfa15d"/>
+      <text class="text" x="140" y="312">Camera</text>
+
+      <path class="tree" d="M84 336h22"/>
+      <rect class="row-alt" x="8" y="322" width="374" height="27"/>
+      <g transform="translate(42 330)">
+        <circle cx="2" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="2" cy="8" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="8" r="1.3" fill="#777b82"/>
+      </g>
+      <use href="#eye" x="62" y="326" width="18" height="18" color="#686c73"/>
+      <path d="M66 330l10 10" stroke="#686c73" stroke-width="1.2"/>
+      <use href="#box" x="114" y="326" width="18" height="18" color="#686c73"/>
+      <text class="text" x="140" y="340" fill="#777b82">Reference_Mesh</text>
+
+      <path class="tree" d="M84 364h22"/>
+      <rect class="row" x="8" y="350" width="374" height="27"/>
+      <g transform="translate(42 358)">
+        <circle cx="2" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="2" r="1.3" fill="#777b82"/>
+        <circle cx="2" cy="8" r="1.3" fill="#777b82"/>
+        <circle cx="8" cy="8" r="1.3" fill="#777b82"/>
+      </g>
+      <use href="#eye" x="62" y="354" width="18" height="18" color="#a8abb1"/>
+      <use href="#body" x="114" y="354" width="18" height="18" color="#7ea5c9"/>
+      <text class="text" x="140" y="368">Armor_Plates</text>
+      <text class="mono blue" x="324" y="367">BODY</text>
+    </g>
+
+    <rect x="1" y="552" width="390" height="31" fill="#292b2f"/>
+    <text class="small" x="14" y="572">Drag rows to reorder or nest. Drag panel handle to move. Drag right edge to resize.</text>
+  </g>
+
+  <g transform="translate(510 118)">
+    <text class="title" x="0" y="0">Changes from the previous version</text>
+    <text class="caption" x="0" y="32">This version treats the Outliner as a flexible scene organizer.</text>
+
+    <g transform="translate(0 70)">
+      <rect x="0" y="0" width="560" height="76" rx="6" fill="#232427" stroke="#34363a"/>
+      <text class="text" x="20" y="29">No fixed sections</text>
+      <text class="caption" x="20" y="54">Cameras, lights, meshes, SDF bodies, and cutters can all be placed anywhere in one tree.</text>
+    </g>
+
+    <g transform="translate(0 162)">
+      <rect x="0" y="0" width="560" height="76" rx="6" fill="#232427" stroke="#34363a"/>
+      <text class="text" x="20" y="29">Compact top bar</text>
+      <text class="caption" x="20" y="54">Panel title, content switcher, add, filter, and sort fit in one small header.</text>
+    </g>
+
+    <g transform="translate(0 254)">
+      <rect x="0" y="0" width="560" height="76" rx="6" fill="#232427" stroke="#34363a"/>
+      <text class="text" x="20" y="29">Visible handles</text>
+      <text class="caption" x="20" y="54">Dotted grips show where to move rows, drag the panel, and resize the panel edge.</text>
+    </g>
+
+    <g transform="translate(0 346)">
+      <rect x="0" y="0" width="560" height="76" rx="6" fill="#232427" stroke="#34363a"/>
+      <text class="text" x="20" y="29">Content switcher</text>
+      <text class="caption" x="20" y="54">The same panel can become Scene Graph, Materials, Body Stack, Modifiers, or Assets.</text>
+    </g>
+
+    <g transform="translate(0 470)">
+      <text class="title" x="0" y="0">Panel content options</text>
+      <rect x="0" y="34" width="112" height="28" rx="4" fill="#2d3740" stroke="#3e4a54"/>
+      <text class="small" x="22" y="52">Scene Graph</text>
+      <rect x="124" y="34" width="96" height="28" rx="4" fill="#232427" stroke="#34363a"/>
+      <text class="small" x="148" y="52">Materials</text>
+      <rect x="232" y="34" width="100" height="28" rx="4" fill="#232427" stroke="#34363a"/>
+      <text class="small" x="257" y="52">Modifiers</text>
+      <rect x="344" y="34" width="86" height="28" rx="4" fill="#232427" stroke="#34363a"/>
+      <text class="small" x="370" y="52">Assets</text>
+      <rect x="442" y="34" width="86" height="28" rx="4" fill="#232427" stroke="#34363a"/>
+      <text class="small" x="464" y="52">History</text>
+    </g>
+  </g>
+</svg>

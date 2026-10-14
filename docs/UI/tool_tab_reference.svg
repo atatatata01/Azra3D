@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="440" viewBox="0 0 420 440" fill="none">
+  <defs>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;display=swap");
+
+      .page { fill: #090a0b; }
+      .panel { fill: #141516; stroke: #030405; stroke-width: 2; }
+      .panel-outline { fill: none; stroke: #030405; stroke-width: 2; }
+      .top { fill: #191b1d; }
+      .body { fill: #1d1f20; }
+      .field { fill: #454748; stroke: #25272a; stroke-width: 1; }
+      .select { fill: #202224; stroke: #25272a; stroke-width: 1; }
+      .check { fill: #4f8fdc; stroke: #6ea7ee; stroke-width: 1; }
+      .title { fill: #c5c9ce; font: 500 13px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .label { fill: #8d9298; font: 500 12px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .value { fill: #e2e3e4; font: 500 13px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .button { fill: #dce0e3; font: 600 12px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+    </style>
+
+    <clipPath id="panelClip">
+      <rect x="0" y="0" width="340" height="330" rx="5"/>
+    </clipPath>
+  </defs>
+
+  <rect class="page" width="420" height="440"/>
+  <g transform="translate(40 40)">
+    <rect class="panel" x="0" y="0" width="340" height="330" rx="5"/>
+    <g clip-path="url(#panelClip)">
+      <rect class="top" x="0" y="0" width="340" height="30"/>
+      <path d="M12 19 7 10h10L12 19Z" fill="#aeb3b8"/>
+      <text class="title" x="24" y="20">Add Cube</text>
+      <circle cx="321" cy="15" r="4" fill="#030405"/>
+      <rect class="body" x="0" y="30" width="340" height="300"/>
+
+      <text class="label" x="96" y="59" text-anchor="end">Size</text>
+      <rect class="field" x="106" y="43" width="218" height="28" rx="3"/>
+      <text class="value" x="215" y="61" text-anchor="middle">2 m</text>
+
+      <rect class="check" x="106" y="80" width="18" height="18" rx="3"/>
+      <path d="M110 89.5 114 93.5 121 84.5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text class="value" x="132" y="94">Generate UVs</text>
+
+      <text class="label" x="96" y="126" text-anchor="end">Align</text>
+      <rect class="select" x="106" y="110" width="218" height="28" rx="3"/>
+      <text class="value" x="116" y="128">World</text>
+      <path d="M311 121h8l-4 6Z" fill="#c5c9ce"/>
+
+      <text class="label" x="96" y="161" text-anchor="end">Location X</text>
+      <text class="label" x="96" y="190" text-anchor="end">Y</text>
+      <text class="label" x="96" y="219" text-anchor="end">Z</text>
+      <rect class="field" x="106" y="145" width="218" height="28" rx="3"/>
+      <rect class="field" x="106" y="174" width="218" height="28" rx="0"/>
+      <rect class="field" x="106" y="203" width="218" height="28" rx="3"/>
+      <text class="value" x="215" y="163" text-anchor="middle">4.54 m</text>
+      <text class="value" x="215" y="192" text-anchor="middle">0.304 m</text>
+      <text class="value" x="215" y="221" text-anchor="middle">-4.58 m</text>
+
+      <text class="label" x="96" y="257" text-anchor="end">Rotation X</text>
+      <text class="label" x="96" y="286" text-anchor="end">Y</text>
+      <text class="label" x="96" y="315" text-anchor="end">Z</text>
+      <rect class="field" x="106" y="241" width="218" height="28" rx="3"/>
+      <rect class="field" x="106" y="270" width="218" height="28" rx="0"/>
+      <rect class="field" x="106" y="299" width="218" height="28" rx="3"/>
+      <text class="value" x="215" y="259" text-anchor="middle">0 deg</text>
+      <text class="value" x="215" y="288" text-anchor="middle">0 deg</text>
+      <text class="value" x="215" y="317" text-anchor="middle">0 deg</text>
+    </g>
+    <rect class="panel-outline" x="0" y="0" width="340" height="330" rx="5"/>
+  </g>
+</svg>

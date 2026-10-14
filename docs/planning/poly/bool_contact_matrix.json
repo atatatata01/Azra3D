@@ -1,0 +1,86 @@
+{
+ "edge_touch_diff": {
+  "verts": 8,
+  "edges": 12,
+  "faces": 6,
+  "volume": 1.0,
+  "nonmanifold_edges": 0
+ },
+ "edge_touch_union": {
+  "verts": 14,
+  "edges": 23,
+  "faces": 12,
+  "volume": 2.0,
+  "nonmanifold_edges": 1
+ },
+ "vertex_touch_diff": {
+  "verts": 0,
+  "edges": 0,
+  "faces": 0,
+  "volume": 0.0,
+  "nonmanifold_edges": 0
+ },
+ "vertex_touch_union": {
+  "verts": 8,
+  "edges": 12,
+  "faces": 6,
+  "volume": 1.0,
+  "nonmanifold_edges": 0
+ },
+ "identical_diff": {
+  "verts": 0,
+  "edges": 0,
+  "faces": 0,
+  "volume": 0.0,
+  "nonmanifold_edges": 0
+ },
+ "identical_union": {
+  "verts": 8,
+  "edges": 12,
+  "faces": 6,
+  "volume": 1.0,
+  "nonmanifold_edges": 0
+ },
+ "identical_intersect": {
+  "verts": 8,
+  "edges": 12,
+  "faces": 6,
+  "volume": 1.0,
+  "nonmanifold_edges": 0
+ },
+ "contained_diff": {
+  "verts": 16,
+  "edges": 24,
+  "faces": 12,
+  "volume": 7.0,
+  "nonmanifold_edges": 0
+ },
+ "contained_intersect": {
+  "verts": 8,
+  "edges": 12,
+  "faces": 6,
+  "volume": 1.0,
+  "nonmanifold_edges": 0
+ },
+ "flush_stack_diff": {
+  "verts": 9,
+  "edges": 14,
+  "faces": 7,
+  "volume": 1.0,
+  "nonmanifold_edges": 0
+ },
+ "flush_stack_union": {
+  "verts": 12,
+  "edges": 20,
+  "faces": 10,
+  "volume": 2.0,
+  "nonmanifold_edges": 0
+ },
+ "halfface_flush_diff": {
+  "verts": 12,
+  "edges": 18,
+  "faces": 8,
+  "volume": 0.75,
+  "nonmanifold_edges": 0
+ }
+}

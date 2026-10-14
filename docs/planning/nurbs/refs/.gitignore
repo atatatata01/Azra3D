@@ -1,0 +1,6 @@
+# Full FreeCAD tessellation dumps are huge (50MB+) — keep lightweight *_pts.json only
+all_edges_r005.json
+all_edges_r02.json
+all_edges_r045.json
+boss_three_edges_junction.json
+boss_two_edges_junction.json

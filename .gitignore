@@ -1,0 +1,32 @@
+core_engine/target/
+ai_backend/models_cache/
+__pycache__/
+
+# --- agent/session scratch (appended by repo-hygiene cleanup; review before committing) ---
+# Agent worktrees are throwaway full-tree copies that pollute code search. This stops
+# FUTURE untracked worktrees from being searched. NOTE: 45 of these are currently TRACKED
+# as gitlinks (mode 160000) from past sessions; this ignore does NOT untrack them — to
+# fully clean those, run `git rm --cached .claude/worktrees/*` then commit (that DOES
+# change the tracked-file count, so it's left as a deliberate human decision).
+.claude/worktrees/
+# Loose screen recordings (heavy). Tracked .gif assets are kept; only ignore stray .mp4.
+.claude/screenshots/*.mp4
+# Pre-merge planning backups — local safety copies, not source of truth. Delete when stale.
+docs/planning.premerge.bak/
+*.premerge.bak/
+
+# Big local-only dirs (2026-07-23)
+assets/PBR/
+.codex/
+dev/
+*.untracked-bak
+
+# AZRA_SOAK run artifacts (screenshots + log) — regenerated per run, never committed
+core_engine/soak_out/
+
+core_engine/soak_out_*/
+
+core_engine/visdiff_m0*/
+core_engine/scoreboard*.log
+core_engine/sb_*.txt
+core_engine/nurbsdiff_run.log

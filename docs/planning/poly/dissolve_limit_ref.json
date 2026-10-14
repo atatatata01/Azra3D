@@ -1,0 +1,48 @@
+{
+ "annulus": {
+  "faces": 2,
+  "edges": 12,
+  "verts": 10,
+  "rings": [
+   [
+    5,
+    9,
+    8,
+    2,
+    3,
+    6,
+    7,
+    4
+   ],
+   [
+    0,
+    1,
+    5,
+    4,
+    3,
+    2
+   ]
+  ],
+  "any_repeated_vertex_in_ring": false
+ },
+ "pinch": {
+  "faces": 2,
+  "edges": 8,
+  "verts": 7,
+  "rings": [
+   [
+    0,
+    1,
+    2,
+    3
+   ],
+   [
+    2,
+    4,
+    5,
+    6
+   ]
+  ],
+  "any_repeated_vertex_in_ring": false
+ }
+}

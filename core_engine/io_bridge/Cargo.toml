@@ -1,0 +1,16 @@
+[package]
+license = "AGPL-3.0-or-later"
+authors = ["Dimitri Neron"]
+name = "io_bridge"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+glam      = { workspace = true }
+tobj      = "4.0"
+mesh_to_sdf = "0.4"
+gltf      = "1"
+rayon     = { workspace = true }
+
+[dev-dependencies]
+glam      = { workspace = true }

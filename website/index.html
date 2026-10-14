@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="AZRA is a futuristic 3D creation tool for SDF modeling, voxel remesh workflows, and non-destructive shape design."
+    >
+    <title>AZRA Software</title>
+    <link rel="icon" href="assets/azra-icon.png">
+    <link rel="stylesheet" href="styles.css?v=minimal-2">
+  </head>
+  <body>
+    <canvas id="space-scene" aria-hidden="true"></canvas>
+
+    <header class="site-header" aria-label="Primary navigation">
+      <a class="brand" href="#top" aria-label="AZRA home">
+        <img src="assets/azra-icon.png" alt="" width="24" height="24">
+        <span>AZRA</span>
+      </a>
+      <a class="header-action" href="#join">Early access</a>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <p class="eyebrow">3D creation software</p>
+        <h1 id="hero-title">AZRA Software</h1>
+        <p class="hero-line">Shape intelligence for future modeling.</p>
+        <p class="hero-copy">
+          SDF primitives, voxel remesh, procedural modifiers, and a GPU viewport
+          folded into one focused creation environment.
+        </p>
+
+        <form class="signup hero-signup" id="hero-signup" data-endpoint="" data-submit-label="Request access" novalidate>
+          <label for="hero-email">Join the private mailing list</label>
+          <div class="signup-row">
+            <input id="hero-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+            <button type="submit">Request access</button>
+          </div>
+          <p class="form-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="capabilities" aria-labelledby="capabilities-title">
+        <p class="section-kicker" id="capabilities-title">Core signal</p>
+        <div class="capability-grid">
+          <article>
+            <span>01</span>
+            <h2>SDF modeling</h2>
+            <p>Build with clean primitives, booleans, blends, bevels, and editable bodies.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h2>Voxel remesh</h2>
+            <p>Carve density, smooth form, and extract clean geometry without losing momentum.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h2>Modifier stack</h2>
+            <p>Keep decisions alive with ordered, non-destructive shape operations.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="waitlist" id="join" aria-labelledby="join-title">
+        <p class="eyebrow">Early access</p>
+        <h2 id="join-title">Follow the first release.</h2>
+        <p>
+          Get short development notes, testing windows, and launch invites as AZRA
+          moves toward its first public build.
+        </p>
+        <form class="signup panel-signup" id="waitlist-signup" data-endpoint="" data-submit-label="Join list" novalidate>
+          <label for="waitlist-email">Email address</label>
+          <div class="signup-row">
+            <input id="waitlist-email" name="email" type="email" autocomplete="email" placeholder="artist@studio.com" required>
+            <button type="submit">Join list</button>
+          </div>
+          <label class="consent">
+            <input type="checkbox" name="consent" required>
+            <span>I agree to receive occasional AZRA software updates.</span>
+          </label>
+          <p class="form-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>AZRA Software</span>
+      <a href="mailto:hello@azrasoftware.com">hello@azrasoftware.com</a>
+    </footer>
+
+    <script src="script.js?v=minimal-2"></script>
+  </body>
+</html>

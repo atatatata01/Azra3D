@@ -1,0 +1,6 @@
+blender=4.5.1 LTS
+count=100000 side=317 shared_mesh=1 tris=1200000
+build_s=9.5
+view_distance=200.0
+DRAW_WIN avg_ms=236.69 (100 iters)
+DRAW_WIN_SWAP avg_ms=244.46 (100 iters)

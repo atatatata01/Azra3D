@@ -1,0 +1,690 @@
+{
+ "maps": [
+  {
+   "file": "core_engine/app/src/main.rs",
+   "total_lines": 3029,
+   "responsibilities": [
+    "Process entry + eframe/wgpu bootstrap: fn main(), NativeOptions, device_descriptor feature negotiation, GpuInfo struct (~lines 247-339).",
+    "GPU init scaffolding type: GpuInitState \u2014 the intermediate struct holding all BGLs/pipeline-layouts/buffers/dummy-textures created before pipelines compile (~lines 346-395).",
+    "GPU context type DEFINITIONS: map_state module, PendingBake, PendingBrickFill, PendingPick, PendingSurfacePick, DcJobResult, PendingDcJob, PipelineReady enum, PipelineRegistry, BindGroupCache, BufferPool, GpuCtx, PendingScreenshot (~lines 397-832).",
+    "Voxel-sculpt runtime type DEFINITIONS: UndoKind, VoxelUndoStack (+impl), VoxelColorUndoStack (+impl), VoxelObject (huge struct +impl with cpu_paint_path/gpu_mesh_paint_topology/set_active_brush/etc.), MeshGrab (+impl), PendingGrab, VoxelBrushSettings, SculptProfile, VoxelRebuildMsg, PendingVoxelRebuild (~lines 818-1397).",
+    "Misc per-frame app-state types: InteractionEpisode (+Default), DiagState (~lines 840-886).",
+    "The FourthLayerApp god-struct field declaration (~200 fields), the AzraApp type alias, and impl Drop (~lines 1399-1614).",
+    "FourthLayerApp::new() \u2014 the ~250-line constructor that builds GpuInitState (all BGL/buffer creation) and initializes every field of the god-struct (~lines 1617-1868).",
+    "Scene-graph <-> flat-cache bridge + small helpers: ensure_sdf_body, build_graph_from_flat, rebuild_prim_body_map, toast, derive_modeling_context (~lines 1870-1992).",
+    "Multi-GPU settings UI + enumeration: active_worker_gpus, draw_multi_gpu_settings (worker checkboxes, re-enumerate) (~lines 1994-2102).",
+    "eframe::App impl: raw_input_hook (Tab-strip) + update() \u2014 the ~900-line frame loop, which ALSO inlines the entire first-frame GPU pipeline compilation (all BGL recreation for the background thread, the spawned compile thread, and the full GpuCtx assembly) (~lines 2106-3025)."
+   ],
+   "proposed_modules": [
+    {
+     "new_module": "gpu_ctx.rs (or gpu_state.rs)",
+     "moves": "Pure move of the GPU context type DEFINITIONS: map_state mod, PendingBake, PendingBrickFill, PendingPick, PendingSurfacePick, DcJobResult, PendingDcJob, PipelineReady enum, PipelineRegistry, BindGroupCache, BufferPool, GpuCtx, PendingScreenshot (lines ~397-832). All already pub(crate); no methods, no &mut self. Add `use crate::*;` / explicit wgpu+glam imports. main.rs keeps these visible via the module's pub(crate) items (crate-wide). Lowest-risk block in the file.",
+     "risk": "low",
+     "approx_lines": 435
+    },
+    {
+     "new_module": "voxel_sculpt_types.rs",
+     "moves": "Pure move of the voxel-sculpt runtime type DEFINITIONS + their inherent impls: UndoKind, VoxelUndoStack, VoxelColorUndoStack, VoxelObject, MeshGrab, PendingGrab, VoxelBrushSettings, SculptProfile, VoxelRebuildMsg, PendingVoxelRebuild (lines ~818-1397). These impls are self-contained (operate on &self/&mut self of their OWN type, not AzraApp) \u2014 MeshGrab::plateau, VoxelObject::set_active_brush, the undo-stack push/pop, etc. No AzraApp borrow. Themed name matches the input_sculpt.rs / voxel_gpu_mesh.rs neighborhood.",
+     "risk": "low",
+     "approx_lines": 580
+    },
+    {
+     "new_module": "app_state.rs",
+     "moves": "Pure move of the small per-frame app-state type defs that are not GPU or voxel: InteractionEpisode (+Default impl), DiagState, GpuInfo (lines ~332-339, 840-886). Trivial POD structs with derives; no borrows.",
+     "risk": "low",
+     "approx_lines": 70
+    },
+    {
+     "new_module": "app_setup.rs (extend gpu_init.rs)",
+     "moves": "Move fn main() + GpuInitState struct (lines ~247-395). fn main() is a free function, not an AzraApp method \u2014 a straight move (it references FourthLayerApp::new via the crate path). GpuInitState is a plain struct. Note: the win_kb_hook commented block and bakeprof_record/consts can stay in main.rs or move too; keep bakeprof_record + PERF_SPAM/BODY_LOCAL_PRIMS consts in main.rs since they are referenced crate-wide by short paths.",
+     "risk": "medium",
+     "approx_lines": 150
+    },
+    {
+     "new_module": "app_new.rs",
+     "moves": "Move FourthLayerApp::new() (the constructor, lines ~1617-1868) into `impl FourthLayerApp` in a sibling module (the app_commands.rs pattern). It is a single associated fn with no self borrow issue (it CONSTRUCTS self). It does reference GpuInitState fields + graphics::bgl helpers + every sub-struct's ::new()/::default(); all are pub(crate)/pub so the move is mechanical. Medium risk only because it is long and touches ~200 field initializers \u2014 a transcription error would fail to compile (caught by cargo build), not silently change behavior.",
+     "risk": "medium",
+     "approx_lines": 255
+    },
+    {
+     "new_module": "app_new.rs (same module)",
+     "moves": "Move the small bridge/helper methods into the same `impl FourthLayerApp`: ensure_sdf_body, build_graph_from_flat, rebuild_prim_body_map, toast, derive_modeling_context (lines ~1870-1992). Per the file-org rule these are scene-graph-shaped; they could alternatively land in scene_actions.rs. All are &mut self methods that only touch self.scene / self.modeling_context / self.ui \u2014 no cross-field aliasing, straight move.",
+     "risk": "low",
+     "approx_lines": 90
+    },
+    {
+     "new_module": "multi_gpu.rs",
+     "moves": "Move active_worker_gpus + draw_multi_gpu_settings into `impl FourthLayerApp` in a new module (lines ~1994-2102). draw_multi_gpu_settings is an egui panel method already called from properties_render.rs; it is a self-contained &mut self borrow (reads job_dispatcher, iterates worker_gpus, toasts). Straight move.",
+     "risk": "low",
+     "approx_lines": 110
+    },
+    {
+     "new_module": "app_update.rs",
+     "moves": "Move the eframe::App impl (raw_input_hook + update) into a sibling module (lines ~2106-3025). CAUTION: this is NOT a pure move of a single method \u2014 update() inlines the entire first-frame GPU pipeline-compilation-and-GpuCtx-assembly block (lines ~2136-2643: BGL recreation for the bg thread, the std::thread::spawn compile thread, and the ~130-line GpuCtx{..} literal). That giant inline block should FIRST be extracted into a helper (e.g. fn init_gpu_ctx(&mut self, ctx)) so update() becomes movable and readable. Extracting it is still behavior-preserving (it runs once, guarded by `if self.gpu_init.is_some()`), but it is a refactor step (extract-method), not a straight cut-paste. Do this extraction as its own gated task before/with the move.",
+     "risk": "high",
+     "approx_lines": 920
+    }
+   ],
+   "is_pure_relocation": false,
+   "extraction_blockers": [
+    "update() is a single ~900-line method that FUSES the frame loop with the entire first-frame GPU bring-up (inline BGL creation, the spawned background compile thread capturing dozens of locals, and the ~130-line GpuCtx{...} + BufferPool{...} + PipelineRegistry{...} + BindGroupCache{...} literal, lines ~2136-2643). Moving update() as-is is a straight cut-paste, but making the result maintainable requires first EXTRACTING that init block into a helper (fn init_gpu_ctx). That is an extract-method refactor (read-phase/build/assign self.gpu = ...), not pure relocation \u2014 so the overall task is is_pure_relocation=false. The extraction is behavior-preserving (guarded, runs once) but must be its own gated step.",
+    "Cross-field &mut self borrows inside update() are pervasive and prevent naive sub-splitting of the loop body: it interleaves self.gpu (GpuCtx), self.scene, self.cache, self.ui, self.input_system, self.tool, self.viewport, self.render in the same scope (e.g. `if let Some(gpu)=&self.gpu { ... self.cache.mesh_cache.upload_pending(&gpu.device,&gpu.queue) }` at ~2863, and the CentralPanel closure at ~2825-2916 borrows self mutably across handle_viewport_input / poll_mesh_cache / ensure_body_meshes / dispatch_gpu_render). These are fine as ONE moved method but cannot be carved into smaller free functions without a read-phase/decide/write-phase restructure. Keep update() whole when moving; do not try to split its interior.",
+    "The god-struct FourthLayerApp itself (lines ~1402-1594) cannot be split \u2014 it is one struct with ~200 fields consumed by every sibling module via `impl FourthLayerApp`. Only the AUXILIARY type definitions around it (GpuCtx family, voxel types, InteractionEpisode/DiagState/GpuInfo) can relocate. The struct declaration, AzraApp alias, and Drop stay in main.rs (or move together), and MUST keep every field pub(crate) so the ~130 already-extracted sibling modules keep compiling.",
+    "Constants and the bakeprof_record fn (BODY_LOCAL_PRIMS, PERF_SPAM, bakeprof_record, lines 10/147/154) are referenced crate-wide by short `crate::CONST` paths; they can move but are load-bearing name anchors \u2014 safest to leave in main.rs (or re-export) so no call sites change. Not a hard blocker, just a re-export consideration.",
+    "Behavior-preservation caveat for the whole plan: the ONLY genuinely non-mechanical piece is the init_gpu_ctx extraction. Every other proposed module is a straight cut-paste of pub(crate) items (types keep crate visibility, methods stay in `impl FourthLayerApp` in a sibling with `use crate::*;`). Per CLAUDE.md this adds NO `pub(crate) fn` to main.rs and respects the scene->scene_actions / prims->prim_actions naming convention. Recommend sequencing: do the low-risk type moves first, cargo build -p app after each, then the new()/update extractions last."
+   ],
+   "owner_worktree": "master"
+  },
+  {
+   "file": "core_engine/app/src/app_poll.rs",
+   "total_lines": 2673,
+   "responsibilities": [
+    "Frame poll orchestration + inline top-of-poll GPU mutations: poll_background_tasks (10-259) sequences every sub-poll AND itself performs deferred atlas rebuild (16-33), material-map uploads (40-54), atlas compact (61-82), post-load warmup staggering (86-98), device.poll drive (105-107), atlas texture-generation invalidation checks (182-232), and per-frame perf/brick metrics (191-206) plus the [SLOWPOLL]/[SPIKE] diagnostic instrumentation (237-258).",
+    "WGSL/SDF pipeline compile hot-swap: poll_sdf_compile (262-439) drains the background compile channel, hot-swaps 14 PipelineReady variants, and lazily builds BGLs + params buffers on the main thread for pt_denoise / primary_bake / brick_fill / temporal.",
+    "AI / Claude / agent / AI-service result polling: poll_agent (442-450), poll_claude (453-518), poll_ai_service (521-573), poll_ai_texture (2479-2510) \u2014 each drains an async channel and mutates self.ai / applies prims / applies materials via transaction().",
+    "Body volume cache bake-result polling + follow-on scheduling: poll_body_vol_cache (576-654) drains baked bodies, syncs resident volume, dispatches DC, advances cascade, classifies bricks, and re-triggers retighten/draft-promotion bakes.",
+    "SDF GPU meshing (Phase G resident path): gpu_mesh_to_cache (664-686), poll_sdf_mesh_jobs (691-714), sdf_populate_resident (719-899) \u2014 GPU QEF-DC into resident slots incl. the field-direct provenance gates + AZRA_PROBE.",
+    "CPU/background Dual-Contouring: dispatch_grid_dc_async (901-1079) gathers grid+brick data and spawns rayon DC extraction; poll_dc_jobs (1083-1124) lands results into mesh_cache under a FrameScheduler ticket.",
+    "Resident volume upload: update_resident_volume (1128-1186) \u2014 scheduler-gated GPU upload of the active body's volume + body-switch metrics.",
+    "Primary GPU bake dispatch: dispatch_pending_primary_bakes (1194-1844) \u2014 coalesce/prioritize/budget requests, atlas slot allocation, path-A in-place bake vs throwaway output buffer, Z-slice TDR splitting, GPU2GPU copy, deferred direct-texture-write completion. This is the single largest responsibility (~650 lines).",
+    "CPU rayon bake fallback: cpu_fallback_bakes (1848-1903) re-collects prims and bakes on rayon when no GPU worker exists.",
+    "Primary bake staging readback: poll_primary_bake (1908-2274) \u2014 scheduler-gated map_async drain, ERR recovery, lazy/field-direct readback fast paths, to_vec + NaN scan + accept_gpu_result + DC dispatch.",
+    "Brick-fill dispatch (dead/disabled): dispatch_brick_fill (2280-2444) \u2014 writes SDF into atlas per active brick; #[allow(dead_code)].",
+    "Predictive warming (disabled): poll_warming (2448-2475) \u2014 idle pre-bake of MRU bodies; call site is commented out.",
+    "GPU worker job + async pick + export polling: poll_gpu_jobs (2514-2548), handle_pending_pick (2551-2587), poll_export (2590-2606).",
+    "Voxel-sculpt atlas undo restore: voxel_apply_atlas_restore (2618-2632) + apply_one_atlas_restore (2636-2672) \u2014 GPU pool copy-back + CPU index restore + chunk re-mesh dirty (voxel sculpt subsystem, distinct from SDF)."
+   ],
+   "proposed_modules": [
+    {
+     "new_module": "core_engine/app/src/app_poll.rs (KEEP as orchestrator)",
+     "moves": "Retain only poll_background_tasks (10-259). It stays the single per-frame entry point declared in main.rs; the sub-poll methods it calls remain AzraApp methods (crate-wide visible) after moving to sibling files, so no signature or call-site change. NOTE: the inline top-of-poll GPU mutation blocks (atlas rebuild/compact, material uploads, post-load warmup, atlas-generation invalidation, perf metrics, [SLOWPOLL] diag) are physically inside this fn body \u2014 leaving them here is a straight keep (no extraction needed for a pure relocation; extracting them into helpers would be a behavior-neutral refactor beyond relocation, so defer).",
+     "approx_lines": 250,
+     "risk": "low"
+    },
+    {
+     "new_module": "core_engine/app/src/poll_bake.rs",
+     "moves": "Move dispatch_pending_primary_bakes (1194-1844), cpu_fallback_bakes (1848-1903), poll_primary_bake (1908-2274), update_resident_volume (1128-1186), poll_body_vol_cache (576-654), and dispatch_brick_fill (2280-2444, dead). All are the SDF bake pipeline (dispatch -> readback -> accept -> resident sync). Straight `impl AzraApp` relocation. Keep `use eframe::egui; use glam::Vec3;` etc. at top of the new file as needed.",
+     "approx_lines": 1200,
+     "risk": "medium"
+    },
+    {
+     "new_module": "core_engine/app/src/poll_dc_mesh.rs",
+     "moves": "Move dispatch_grid_dc_async (901-1079), poll_dc_jobs (1083-1124), gpu_mesh_to_cache (664-686), poll_sdf_mesh_jobs (691-714), sdf_populate_resident (719-899). These are the Dual-Contouring + GPU-mesh (Phase G) extraction path. Pure relocation; the rayon closure in dispatch_grid_dc_async captures owned data (no self borrow crosses the thread), so it moves intact.",
+     "approx_lines": 490,
+     "risk": "medium"
+    },
+    {
+     "new_module": "core_engine/app/src/poll_ai.rs",
+     "moves": "Move poll_agent (442-450), poll_claude (453-518), poll_ai_service (521-573), poll_ai_texture (2479-2510). All drain AI/Claude/agent channels and mutate self.ai. Needs `use crate::claude::ClaudeKind; use glam::Vec3;` in the new file. Pure relocation.",
+     "approx_lines": 190,
+     "risk": "low"
+    },
+    {
+     "new_module": "core_engine/app/src/poll_pipeline_compile.rs",
+     "moves": "Move poll_sdf_compile (262-439) \u2014 the pipeline hot-swap + lazy BGL/params-buffer creation. Self-contained, one method. Pure relocation (verbose wgpu descriptor literals move byte-for-byte).",
+     "approx_lines": 180,
+     "risk": "low"
+    },
+    {
+     "new_module": "core_engine/app/src/poll_misc.rs",
+     "moves": "Move poll_gpu_jobs (2514-2548), handle_pending_pick (2551-2587), poll_export (2590-2606), poll_warming (2448-2475, disabled). Small independent drains of worker-GPU / pick / export / warming channels. Pure relocation.",
+     "approx_lines": 150,
+     "risk": "low"
+    },
+    {
+     "new_module": "core_engine/app/src/poll_voxel_undo.rs",
+     "moves": "Move voxel_apply_atlas_restore (2618-2632) and apply_one_atlas_restore (2636-2672). This is the VOXEL SCULPT subsystem (GPU pool copy-back + CPU index restore), architecturally separate from SDF per CLAUDE.md. Alternatively relocate into the existing voxel_gpu_mesh.rs sibling (which already owns AtlasUndoEntry) \u2014 better cohesion. Pure relocation either way; needs `use core_math::voxel_sculpt::DensityStorage;`.",
+     "approx_lines": 60,
+     "risk": "low"
+    }
+   ],
+   "is_pure_relocation": true,
+   "extraction_blockers": [
+    "No behavior change and no borrow restructure is required: every function is an `impl AzraApp` method, and Rust resolves inherent methods across all `impl AzraApp` blocks crate-wide regardless of which sibling file holds them. Moving whole functions to new `mod`s declared in main.rs needs ZERO re-exports and ZERO call-site edits \u2014 poll_background_tasks keeps calling self.poll_primary_bake() etc. unchanged. This mirrors the existing codebase convention (main.rs declares ~90 flat sibling mods, each an impl-AzraApp file).",
+    "The cross-cutting &mut self reach is wide but does NOT block a straight move because the disjoint-borrow choreography is already self-contained INSIDE each function. Examples that must move as an atomic unit (do not split): dispatch_pending_primary_bakes pre-collects `deferred_direct_writes: Vec<(NodeId,[u32;3],Vec3,Vec3,BodyTransform,u64,bool)>` (1225) and `allow_instancing_skip`/`active_nid` BEFORE taking the `let gpu = &mut self.gpu` borrow (1236), then processes them AFTER the gpu borrow scope closes (1784) \u2014 moving the whole fn preserves this; extracting only the loop body would break it.",
+    "Arc-clone-to-release-borrow patterns are internal and move intact: rv_bake_buf clones `rv.buffer` (Arc-backed) to drop the body_vol_cache borrow (1372-1382); the gpu2gpu re-borrow of resident_volume() after the immutable ref drops (1712-1714). These are within single functions \u2014 relocation carries them verbatim.",
+    "Shared field access spans self.gpu, self.cache (cache.body_vol_cache, cache.mesh_cache, cache.sdf_mesher, cache.atlas_rebuild_xy, cache.material_map_loads, cache.pending_sdf_mesh, cache.pending_dc_jobs), self.scene (scene_graph, active_body_nid, primitives), self.perf, self.scheduler, self.tool, self.ai, self.ui, self.render, self.voxel, self.job_dispatcher, self.pending_pick, self.pending_atlas_restore, self.force_volume_only, self.prev_frame_wall_ms, self.is_dirty. All remain fields of AzraApp, reached via `self.` \u2014 unaffected by which file the method lives in.",
+    "Each new file must carry the imports its moved functions use: poll_ai.rs needs `use crate::claude::ClaudeKind;` and `use glam::Vec3;`; poll_bake.rs / poll_dc_mesh.rs need `use glam::Vec3;` and per-fn `use core_math::scene_graph::{NodePayload, NodeId}; use render::mesh_cache::hash_primitives;` (these are currently fn-local `use` statements inside dispatch_grid_dc_async/cpu_fallback_bakes/dispatch_brick_fill, so they move WITH the fn); poll_voxel_undo.rs needs `use core_math::voxel_sculpt::DensityStorage;`. Blanket `use crate::*;` (as app_poll.rs uses at line 5) can be duplicated in each new file to minimize per-fn import churn.",
+    "Constants and helper types referenced are all external (crate::frame_scheduler::WorkTicket/WorkClass, crate::gpu_jobs::BakeParams/BakeOutputMode, crate::map_state::MapState, PendingBake/PendingDcJob/DcJobResult, crate::bakeprof_record, DirtyFlags, SceneItemId). None are defined in app_poll.rs, so no type/const definitions need to move alongside \u2014 relocation of the impl methods alone suffices.",
+    "Verify after each move with `cargo build -p app` (per CLAUDE.md Build Discipline). Risk is medium ONLY for poll_bake.rs and poll_dc_mesh.rs due to their size and the dense inline diagnostic/borrow code, not due to any logic that resists moving \u2014 the risk is transcription error (missing a brace or a fn-local `use`), not a design blocker."
+   ],
+   "owner_worktree": "general"
+  },
+  {
+   "file": "core_engine/app/src/viewport_render.rs",
+   "total_lines": 2096,
+   "responsibilities": [
+    "RenderMode DECISION (pure): resolve_render_mode free fn + GpuReadiness + RenderModeInputs structs (lines 19-120) \u2014 priority-ladder that picks one RenderMode enum from flags. Already a free fn specifically to dodge the &self vs &mut self.gpu borrow conflict. Zero self access.",
+    "FRAME GATING / interaction-episode bookkeeping (lines 123-267): CUDA early-branch, heavy-compile draft/skip overlay, billboard yaw dirty-marking, user_interacting vs system_busy split, interaction frame counters, half-res latching, episode start/stop + cooldown + pipeline-latch, the is_dirty early-return gate. Mutates self.render.*, self.viewport.camera.*, self.interaction_episode.*, self.scheduler.*.",
+    "PER-FRAME STATE DERIVATION (lines 268-397, pre-gpu-borrow): march resolution math, light serialize cache refresh, force_volume_only / volume_preview_active derivation, hybrid raster_pass dispatch (delegated), bevel-preview uploads (delegated), compositor + light snapshots, selection set resolve + hash, sculpt-raymarch param capture.",
+    "PRIM BUFFER SERIALIZE + UPLOAD (lines 447-600): needs_prim_upload decision matrix (volume-only / object-mode / edit-mode branches), partial single-body serialize+patch, full serialize_from_graph, prim_buffer + bvh_node_buffer realloc-on-grow, cached_prim_bytes/nv/ranges writeback, prev_sel/edit/rim tracking. Reads scene graph, mutates self.cache.* + gpu.buffers/bind_groups.",
+    "GPU RESOURCE (RE)CREATION on resize/invalidation (lines 601-830): light buffer upload+realloc; the giant texture+bind-group rebuild block (hdr/ldr/upsample, 11 G-buffer textures, temporal, raymarch bg, deferred bg, bevel bg, ssr bg, fog bg, tonemap bg, 3 bloom bgs, pt_bg, pt_bounce_bg, pt_accum) \u2014 all keyed on texture_size/None checks. This is the Frame-Ordering-Contract bind-group-creation phase.",
+    "UNIFORM ASSEMBLY (lines 831-1200): render_mode(rm)/view_mode(vm)/bloom_flags packing, PT progressive-accumulation + focus-UV state, the ~40-field RenderConfig literal, far_clip/grid/symmetry/sel-rim/dither/LOD/foveated fields, cached_all_meshes_ready walk, use_lite + drag_needs_analytical decision, volume-only AABB world-transform, atlas frustum-cull rebuild+upload, selected_body_index, volume shadow/AO packing, uniform_buffer + compositor + light-link writes.",
+    "COMPUTE-PASS DISPATCH (lines 1201-1610): command encoder, hybrid depth copy, temporal-reproject pass, gpu_ts timestamp setup + tw! macro, the render_mode match {PathTrace | VolumePreview | GlslBvh | Analytical{Lite,March,Full}} with per-mode bind-group rebuilds, episode-jitter debug_asserts, sculpt-voxel raymarch overlay pass.",
+    "POST-PROCESS DISPATCH + FRAME EPILOGUE (lines 1611-1908): pipe-label diagnostics, temporal history copy, deferred (lite/full) pass + lazy compile, bevel-preview pass, SSR, fog, blend/overlay dispatches, bloom, tonemap, FXAA (with lazy BGL+bg), upsample, submit + breadcrumbs, gpu_ts resolve, async screenshot copy, prev_cam cache, GPU-mem accounting HUD.",
+    "CUDA RENDER PATH (lines 1910-2037): dispatch_cuda_render \u2014 a self-contained #[cfg(feature=\"cuda\")] sibling that re-derives RenderConfig, serializes prims via serialize_primitives_bytes_ex, calls cuda.render, blits result to gpu.texture. Structurally parallel to (and duplicates config-building logic with) the WGSL path.",
+    "VIEWPORT-MODE AUTO POLICY (lines 2039-2094): update_viewport_mode_auto \u2014 decides FullSdf vs Hybrid from has_raster / all_sdf_meshed / object_mode. Pure policy, only reads scene graph + mutates self.render.viewport_mode + toasts. Deliberately kept out of the render path already."
+   ],
+   "proposed_modules": [
+    {
+     "new_module": "viewport_render_mode.rs",
+     "moves": "resolve_render_mode() free fn + GpuReadiness + RenderModeInputs structs + the two DRAFT_* consts (lines 10-120, ~110 lines). Pure straight move: these are already free (non-method) items written specifically to avoid the self/gpu borrow, take only primitive args, return a RenderMode enum. Make resolve_render_mode + structs pub(crate); re-export or call as crate::viewport_render_mode::resolve_render_mode from the dispatch site. Zero behavior change, zero borrow restructure.",
+     "approx_lines": 110,
+     "risk": "low"
+    },
+    {
+     "new_module": "viewport_render_mode_auto.rs (or fold into raster_render.rs which already holds dispatch_raster_pass)",
+     "moves": "update_viewport_mode_auto (lines 2039-2094, ~56 lines) into a sibling `impl FourthLayerApp` block. It is a self-contained pub(crate) method: reads scene graph, writes self.render.viewport_mode, calls self.toast(). No held gpu borrow, no overlap with the mega-method. Straight cut-paste into a new file declared `mod` in main.rs \u2014 identical to how dispatch_raster_pass already lives in raster_render.rs.",
+     "approx_lines": 56,
+     "risk": "low"
+    },
+    {
+     "new_module": "cuda_render_dispatch.rs",
+     "moves": "dispatch_cuda_render (lines 1910-2037, ~128 lines) into a sibling `#[cfg(feature=\"cuda\")] impl FourthLayerApp` block. Self-contained, already feature-gated, only referenced once (line 143) via self.dispatch_cuda_render(...). Method-to-method move across files needs no signature change. Only caution: it is cfg-gated so build-verify with AND without the cuda feature.",
+     "approx_lines": 128,
+     "risk": "low"
+    },
+    {
+     "new_module": "(NONE \u2014 dispatch_gpu_render inner phases CANNOT be pure-relocated)",
+     "moves": "The serialize/upload, resource-recreation, uniform-assembly, pass-dispatch and epilogue phases (lines ~447-1905) all live INSIDE one `if let Some(gpu)=&mut self.gpu { ... }` block that holds &mut self.gpu across ~1500 lines while simultaneously reading self.scene/cache/render/viewport/ui and writing self.cache.*/self.render.*/self.ui.* fields in interleaved expressions. Splitting any phase into its own &mut self method would re-borrow self while gpu is already borrowed -> E0499/E0502. A true split requires a read-phase/decide/write-phase restructure (or threading the borrowed gpu + queue + device as explicit &mut params into free helper fns, plus staging all self writes into locals applied after the block). That is a borrow restructure, not a relocation, so it is out of scope for a behavior-preserving pure move.",
+     "approx_lines": 1500,
+     "risk": "high"
+    }
+   ],
+   "is_pure_relocation": false,
+   "extraction_blockers": [
+    "Single long-lived `if let Some(gpu)=&mut self.gpu { ... }` borrow spans lines 398-1905 (~1500 lines). Every would-be sub-phase both mutates gpu.* and reads/writes self.* (self.cache.cached_prim_bytes, self.render.pt_accumulated_frames, self.ui.prof_pass_times[..], self.interaction_episode.*, self.perf.*) in the same scope \u2014 extracting a phase as a &mut self method double-borrows self and won't compile (E0499/E0500/E0502).",
+    "Extraction fields are captured into function-local `let device=gpu.device.clone(); let queue=gpu.queue.clone();` (line 399) and a mutable `enc` command encoder threaded and REASSIGNED across passes (line 1503-1504 GlslBvh early-submit does `queue.submit(enc.finish()); enc = device.create_command_encoder(...)`). Any pass-dispatch extraction must take &mut enc + &queue + &device + &mut gpu explicitly \u2014 cannot capture self \u2014 so it is param-threading, not a move.",
+    "The `tw!` macro (lines 1301-1305) closes over a function-local `gpu_ts` that was `.take()`n out of gpu (line 1298) to dodge a borrow conflict with ensure_*_pipeline, and is written back at line 1836. Every dispatch pass uses tw!; moving passes out means passing gpu_ts through, and the take/writeback bracket must stay in the owning scope.",
+    "Interleaved self writes throughout the gpu block (e.g. self.cache.prim_buf_stale=false @589, self.prev_sel_hash @590, self.render.pt_accumulated_frames @854/859, self.ui.prof_pass_times[k] scattered @1401/1611/1677/1699/1709/1767/1770/1811, self.render.fog_frame_index @1863) mean a clean split needs a decide->collect-locals->apply-after-drop restructure to satisfy the borrow checker.",
+    "dispatch_cuda_render and the WGSL path duplicate the ~40-field RenderConfig construction and sel-set/uniform packing. This is real duplication worth flagging for later unification, but merging them is a logic change (out of scope for pure relocation) \u2014 only note it."
+   ],
+   "owner_worktree": "master"
+  },
+  {
+   "file": "F:\\PROJECT\\FourthLAyerAi\\core_engine\\app\\src\\input_sculpt.rs",
+   "total_lines": 3051,
+   "responsibilities": [
+    "Sculpt input dispatch + stroke lifecycle: handle_sculpt_input (master router incl. legacy cpu_volume SDF path + all release/commit-undo branching), handle_voxel_sculpt_input (per-frame brush stroke: local-space raycast, lazy-mouse, pressure, symmetry, direction resolve, GPU-atlas vs GPU-box vs CPU dispatch), and handle_sdf_sculpt_input (an entirely SEPARATE SDF-modifier sculpt via write_prim/begin_episode that shares no state with the voxel path).",
+    "Voxel object lifecycle: new_voxel_sphere/box, voxel_create, voxel_set_active, voxel_enter_edit, voxel_leave_edit, clear_voxels, voxel_sync_node_mesh, regen_voxel_display_meshes.",
+    "Pure chunk-geometry math + file helpers (free fns, no self): VOXEL_CHUNK, SMOOTH_ALL_ITERS, voxel_chunk_dim, voxel_chunk_anchor, voxel_chunks_for_region, prune_front_undo_markers, half_to_f32 + the chunk_region_tests module.",
+    "Chunk dirty-marking + CPU mesh drain: voxel_mark_chunks_in_region, voxel_chunks_for_region_linear, voxel_mark_chunks_for_brush, voxel_expand_stroke_aabb, voxel_build_all_chunks, voxel_flush_dirty_chunks.",
+    "GPU meshing + brick-atlas pipeline: voxel_flush_gpu_async, voxel_sync_mesh_atlas, voxel_ensure_pool, voxel_gpu_parity_check, voxel_gpu_brush_parity.",
+    "GPU brush readback + surface pick (poll-phase async collectors): voxel_brush_collect, materialize_cpu_from_atlas, voxel_surface_pick, poll_pending_surface_pick.",
+    "Move/Smudge mesh-grab + re-voxelize round-trip: voxel_commit_move_grab, voxel_revoxelize_instances, voxel_flush_pending_move, voxel_grow_for_move, voxel_spawn_mesh_rebuild.",
+    "Resample / off-screen rebuild / remesh UI + undo reset: voxel_resample_to, voxel_flush_pending_rebuild, voxel_undo_reset, voxel_open_remesh, draw_voxel_remesh_popup.",
+    "Sculpt actions + undo/redo delta restore: voxel_restore_delta, voxel_restore_color_delta, voxel_fill_all_color, voxel_smooth_all."
+   ],
+   "proposed_modules": [
+    {
+     "new_module": "voxel_chunk_math.rs",
+     "moves": "The 6 self-free helpers + constants and the test module: VOXEL_CHUNK, SMOOTH_ALL_ITERS, voxel_chunk_dim, voxel_chunk_anchor, voxel_chunks_for_region, prune_front_undo_markers, half_to_f32, and #[cfg(test)] mod chunk_region_tests. These are pure functions with no self/AzraApp involvement \u2014 the cleanest extraction. Must be pub(crate) so the remaining input_sculpt code and the other sibling voxel_* modules can call them; input_sculpt gains `use crate::voxel_chunk_math::*;`. ONE external caller path changes: ui_panels.rs:646 `crate::input_sculpt::SMOOTH_ALL_ITERS` -> `crate::voxel_chunk_math::SMOOTH_ALL_ITERS` (reference update only, no logic). Register `mod voxel_chunk_math;` in main.rs.",
+     "approx_lines": 90,
+     "risk": "low"
+    },
+    {
+     "new_module": "voxel_actions.rs",
+     "moves": "impl AzraApp block for lifecycle + actions: new_voxel_sphere, new_voxel_box, clear_voxels, voxel_create, voxel_set_active, voxel_enter_edit, voxel_leave_edit, voxel_sync_node_mesh, regen_voxel_display_meshes, voxel_undo_reset, voxel_open_remesh, draw_voxel_remesh_popup, voxel_restore_delta, voxel_restore_color_delta, voxel_fill_all_color, voxel_smooth_all. Straight move into a second `impl AzraApp {}` in a new file (matches the scene_actions/prim_actions naming convention). All callers use self.method() so no call sites change; needs `use crate::voxel_chunk_math::*;` and `use crate::*;`.",
+     "approx_lines": 430,
+     "risk": "low"
+    },
+    {
+     "new_module": "voxel_mesh_gpu_pipeline.rs",
+     "moves": "impl AzraApp block for the GPU mesh/atlas/pool + async collectors: voxel_mark_chunks_in_region, voxel_chunks_for_region_linear, voxel_mark_chunks_for_brush, voxel_expand_stroke_aabb, voxel_build_all_chunks, voxel_flush_dirty_chunks, voxel_flush_gpu_async, voxel_sync_mesh_atlas, voxel_ensure_pool, voxel_gpu_parity_check, voxel_gpu_brush_parity, voxel_brush_collect, materialize_cpu_from_atlas, voxel_surface_pick, poll_pending_surface_pick. Pure move into a new `impl AzraApp {}`; these methods already do their own internal GpuCtx field-splitting and self.voxel.as_mut() scoping, so nothing crosses a borrow boundary that a move would break. Needs half_to_f32 + chunk helpers from voxel_chunk_math.",
+     "approx_lines": 780,
+     "risk": "medium"
+    },
+    {
+     "new_module": "voxel_move_resample.rs",
+     "moves": "impl AzraApp block for Move/Smudge grab re-voxelize + resample/rebuild: voxel_commit_move_grab, voxel_revoxelize_instances, voxel_flush_pending_move, voxel_grow_for_move, voxel_spawn_mesh_rebuild, voxel_resample_to, voxel_flush_pending_rebuild. Straight move into a new `impl AzraApp {}`. These call voxel_mark_chunks_in_region / voxel_undo_reset / voxel_flush_dirty_chunks (now in sibling impl blocks) via self. \u2014 unaffected by relocation. Worker-thread closures capture cloned grids/senders only, no self borrow escapes.",
+     "approx_lines": 400,
+     "risk": "medium"
+    },
+    {
+     "new_module": "input_sculpt.rs (remains)",
+     "moves": "Keep the three input entry points here (the file's namesake): handle_sculpt_input, handle_voxel_sculpt_input, handle_sdf_sculpt_input. handle_sdf_sculpt_input is the odd one out (SDF-modifier sculpt, no voxel state) and could alternatively live near the SDF/prim code, but leaving it in the input file is the smallest move. After the extractions this file shrinks to the input-routing responsibility only, with `use crate::{voxel_chunk_math::*, ...};`.",
+     "approx_lines": 850,
+     "risk": "low"
+    }
+   ],
+   "is_pure_relocation": false,
+   "extraction_blockers": [
+    "NOT a borrow-restructure problem: every method is self-contained. Each already scopes its own `self.voxel.as_mut()` / `self.gpu.as_mut()` borrows and does explicit GpuCtx field-destructuring (e.g. the `let crate::GpuCtx { voxel_mesh, voxel_chunk_gpu, .. } = self.gpu.as_mut().unwrap();` splits in voxel_flush_gpu_async, and the disjoint `self.voxel_stroke` vs `self.voxel` field borrows in voxel_brush_collect/handle_voxel_sculpt_input). No borrow spans a method-call boundary, so moving whole methods to a sibling `impl AzraApp` block changes nothing about borrow-checking. No read-phase/decide/write-phase rewrite is required.",
+    "The reason is_pure_relocation=false: it is not a literally-zero-edit textual move. (1) The file is ONE `impl AzraApp {}` block that must be split into several `impl AzraApp {}` blocks across files (legal inherent-impl split, behavior-identical, but not byte-for-byte the same file). (2) The free helpers (voxel_chunk_dim/anchor/chunks_for_region, VOXEL_CHUNK, SMOOTH_ALL_ITERS, prune_front_undo_markers, half_to_f32) are used by MULTIPLE new modules, so they must move to a shared voxel_chunk_math module and every consumer (including the remaining input_sculpt code) gains a `use`. (3) ONE cross-module path must change: ui_panels.rs:646 references `crate::input_sculpt::SMOOTH_ALL_ITERS` and must be repointed to the new module. These are mechanical reference/visibility edits, not logic changes.",
+    "Cross-file coupling to watch (does not block, but the relocation must preserve it): the moved free fns must stay `pub(crate)` (already are) so sibling impl blocks + ui_panels can call them; `use crate::*;` must be present at the top of each new module for the many `crate::VoxelObject`/`crate::PendingGrab`/`crate::GpuCtx`/`crate::UndoKind`/`DirtyFlags`/`WorkMode` references; and each new `mod` must be registered in main.rs. handle_sdf_sculpt_input touches none of the voxel machinery (it is an SDF-prim write_prim/episode path) \u2014 it is only in this file by history, so grouping it with the voxel split would be misleading; keep it in the input file (or move to a prim/sdf-themed module) rather than a voxel_* module."
+   ],
+   "owner_worktree": "sculpt"
+  },
+  {
+   "file": "core_engine/app/src/gizmo.rs",
+   "total_lines": 1719,
+   "responsibilities": [
+    "Scene EDIT ACTIONS (not gizmo at all): delete_selected (L197-321, dispatches over prim/body/light deletion), duplicate_selected (L322-447, dispatches over voxel/prim/body/node/light), duplicate_scene_node (L448-488), duplicate_voxel_object (L494-532), focus_selected (L533-554). These are scene mutation commands that happen to live in gizmo.rs but belong under the scene_actions.rs convention.",
+    "TransformResult APPLY/WRITE-BACK dispatch: apply_to_sdf_prim (L33-66) and apply_to_scene_node (L69-193). The single point that writes a computed TransformResult into the graph+flat cache, handling BODY_LOCAL_PRIMS world<->local conversion, SdfBody origin/body_rotation/body_scale, child-body offset, and mark_transform_safe. Shared by BOTH the modal and gizmo paths.",
+    "MODAL transform (keyboard G/R/S/E): start_modal_transform (L557-710), cancel_modal_transform (L711-785), confirm_modal_transform (L786-831), update_modal_transform (L953-1109), capture_transform_num_input (L934-951). Numeric-buffer driven modal operator with prim/node/light branches.",
+    "ARRAY duplicate + pre-grab state: transform_array_scroll (L835-894), update_array_positions (L897-919), restore_pre_grab_state (L922-931). Shift+drag array count / even spacing / bevel-extrude mode restore.",
+    "PRO GIZMO drag (mouse handle interaction): start_gizmo_drag (L1114-1333), update_gizmo_drag (L1335-1509), finish_gizmo_drag (L1511-1538), cancel_gizmo_drag (L1540-1594). Component->axis mapping, per-target compute+apply, light/node/prim branches, body pivot orbit/scale.",
+    "Body-origin RECOMPUTE (dead code): update_body_origin_from_selection (L1602-1718), #[allow(dead_code)], centroid recentering with BODY_LOCAL_PRIMS local-shift compensation."
+   ],
+   "proposed_modules": [
+    {
+     "new_module": "scene_actions.rs (append into existing file \u2014 do NOT create new)",
+     "moves": "delete_selected, duplicate_selected, duplicate_scene_node, duplicate_voxel_object, focus_selected (gizmo.rs L197-554). These are pure scene-edit commands, not transform math; CLAUDE.md names scene_actions.rs as the home for scene mutations and already contains duplicate_subtree/recalculate_body_origin. All bodies call only self.* methods (transaction, remove_prims_from_graph, duplicate_subtree, mesh_cache, etc.) that resolve identically from any sibling impl block. All five are already pub(crate), so no visibility change. Straight cut-and-paste into an impl FourthLayerApp block.",
+     "approx_lines": 358,
+     "risk": "low"
+    },
+    {
+     "new_module": "transform_apply.rs (new sibling)",
+     "moves": "apply_to_sdf_prim (L33-66) and apply_to_scene_node (L69-193), plus the top-of-file WARNING banner comment. These are the shared write-back dispatch used by both modal and gizmo. CAVEAT: both are currently private `fn`; callers live in modal + gizmo modules. Moving them to their own file requires widening BOTH to `pub(crate) fn` (visibility-only change, zero logic change). This is the single non-straight-move in the whole split.",
+     "approx_lines": 162,
+     "risk": "medium"
+    },
+    {
+     "new_module": "transform_modal.rs (new sibling)",
+     "moves": "start_modal_transform, cancel_modal_transform, confirm_modal_transform, update_modal_transform, capture_transform_num_input, transform_array_scroll, update_array_positions, restore_pre_grab_state (L557-931 + L953-1109). The keyboard-operator half of transforms + its array/pre-grab helpers. Calls into apply_to_sdf_prim/apply_to_scene_node (needs those pub(crate) per the transform_apply module). update_array_positions/restore_pre_grab_state are private but stay in THIS module with their only callers, so they can remain private fn.",
+     "approx_lines": 560,
+     "risk": "medium"
+    },
+    {
+     "new_module": "gizmo_drag.rs (new sibling \u2014 or keep as gizmo.rs residue)",
+     "moves": "start_gizmo_drag, update_gizmo_drag, finish_gizmo_drag, cancel_gizmo_drag (L1114-1594). The mouse-handle gizmo interaction half. Depends on apply_to_scene_node/apply_to_sdf_prim (pub(crate) per transform_apply). All other calls (resolve_transform_targets, duplicate_prim_for_transform, selection_median, begin_episode) are self.* methods living in other files already \u2014 unaffected.",
+     "approx_lines": 480,
+     "risk": "low"
+    },
+    {
+     "new_module": "gizmo.rs (residue) OR delete",
+     "moves": "update_body_origin_from_selection (L1602-1718). Dead code (#[allow(dead_code)], private, no live callers). Move alongside body-origin logic in scene_actions.rs (next to recalculate_body_origin) as a private fn, or leave in place. Zero external references.",
+     "approx_lines": 117,
+     "risk": "low"
+    }
+   ],
+   "is_pure_relocation": false,
+   "extraction_blockers": [
+    "Cross-module private-method dependency: apply_to_sdf_prim and apply_to_scene_node are declared `fn` (private). They are called from BOTH the modal set (update_modal_transform L1081/L1103, apply_to_scene_node L742/L1030) AND the gizmo set (update_gizmo_drag L1501/L1433, cancel_gizmo_drag L1571). If modal and gizmo become separate modules, these two must be widened to `pub(crate) fn`. That is a visibility change, so the split is NOT a byte-for-byte pure relocation \u2014 but it is the mildest kind (no logic/borrow rework, behavior identical). This alone forces is_pure_relocation=false.",
+    "No genuine read-phase/write-phase borrow restructure is required. Every function borrows &mut self (the whole FourthLayerApp) as a unit and calls other &mut self methods that ALREADY live in sibling files (write_prim_transform in prim_actions.rs, resolve_transform_targets in transform_targets.rs, selection_median in selection.rs, transform_camera/transform_settings in transform.rs, duplicate_subtree in scene_actions.rs). Rust resolves inherent methods across all impl FourthLayerApp blocks regardless of which file they sit in, so no borrow reshaping is needed \u2014 only the two pub(crate) widenings above.",
+    "Keep the two WARNING banners (L1-7 and L1336-1341) with the transform-apply / gizmo-update code they guard, or the 'all transform math lives in compute_transform()' invariant loses its anchor after the split.",
+    "Sequencing: promote apply_to_sdf_prim/apply_to_scene_node to pub(crate) and move them to transform_apply.rs FIRST (compile green), THEN move modal and gizmo halves, THEN move the scene-edit actions. Moving modal or gizmo before the apply methods are visible would break the build mid-refactor (violates 'don't pile changes on a broken state')."
+   ],
+   "owner_worktree": "general"
+  },
+  {
+   "file": "core_engine/app/src/input_viewport.rs",
+   "total_lines": 1674,
+   "responsibilities": [
+    "Scroll/zoom dispatch (lines 102-323): a 12-arm if/else-if chain routing the wheel to bevel radius, blend_k, poly-bevel segments, proportional-edit radius, smart-mirror rotate, SDF prim cycle, root-body cycle, depth-pick cycle, loop-cut count, shift-duplicate array count, hierarchy reorder, or plain camera zoom.",
+    "Hover detection (lines 324-552): sets tool.hovered_bevel_edge, hovered_face, hovered_prim, poly/nurbs sub-element hover, falloff_hovered, and gizmo_hovered each frame; plus depth-pick drift/cancel and body-cycle accumulator reset.",
+    "Smart-mirror per-frame plane update (lines 421-527): reads phase/action from modifiers, raycasts scene/workplane to position the mirror plane, handles Adjusting-phase drag translate and delete-half preview.",
+    "MMB camera navigation (lines 553-563): dolly/pan/orbit from middle-button drag.",
+    "Create-tool extrude tracking (lines 564-599): depth accumulation, orbit-freeze, commit on click.",
+    "Primary-drag master dispatch (lines 600-1094): one giant mutually-exclusive if/else-if chain covering sculpt passthrough, pivot drag, create footprint/start, falloff-handle drag (End/Origin/Radius), blend-k drag (prim+body), bool-edge-bevel drag, box/cylinder bevel drag, drag-START of bevel/falloff/blend-k/bool-edge, face push-pull, poly extrude/inset/bevel/box-select/circle-select drag, nurbs CV drag, and the gizmo/selection-box/alt-move/poly-box-select start fallbacks.",
+    "Drag-release finalization (lines 1095-1304): commit_episode + return-to-Idle for every drag tool; poly box/circle-select apply; pivot confirm; create footprint->extrude transition; gizmo finish; confirm-on-release transforms; selection-box finish (box drag vs point-click raycast + node pick).",
+    "Secondary-click (RMB) dispatch (lines 1305-1392): shift-RMB workplane placement, RMB on blend-k diamond popup, and RMB cancel-active-op / context-menu / shape-swap-pie.",
+    "Click-select specialization (lines 1393-1560): bevel-edge click/double-click loop selection, double-click enter-body-scope, double-click enter edit mode, poly edge-loop/linked double-click, gizmo reset-handle click, blend-k diamond click-cycle (prim profile + body boolean), then delegate to handle_click_select.",
+    "Sculpt delegation (lines 1561-1564): calls into handle_sculpt_input / handle_sdf_sculpt_input (already in input_sculpt.rs).",
+    "MMB-on-bool-edge reset (lines 1566-1584): reset bevel blend_k to 0.",
+    "OS file-drop onto viewport (lines 1586-1671): HDR env load, image->prim texture or billboard-plane creation, and the drop-hover overlay paint."
+   ],
+   "proposed_modules": [
+    {
+     "new_module": "input_viewport_scroll.rs",
+     "moves": "Extract lines 102-323 into fn handle_viewport_scroll(&mut self, ctx, rect, shift, alt, ctrl) -> bool. The whole `if response.hovered() { let sc=...; ... }` block is self-contained except it defines the `do_zoom` closure (pure, movable) and reads shift/alt/ctrl locals (pass as params). It mutates only self.* fields + tool state, returns nothing needed by later blocks, so it lifts cleanly as one private method called in place.",
+     "risk": "low",
+     "approx_lines": 222
+    },
+    {
+     "new_module": "input_viewport_hover.rs",
+     "moves": "Extract the hover-detection pass (lines 324-552, EXCLUDING the smart-mirror sub-block 421-527 which goes to its own module) into fn update_viewport_hover(&mut self, ctx, rect, response, shift, alt, ctrl). Sets hovered_bevel_edge/hovered_face/hovered_prim/poly+nurbs hover/falloff_hovered/gizmo_hovered + depth-pick drift-cancel + body-cycle-accum reset. These are ordered self.* writes with no locals produced for later use except the hover fields (stored on self.tool). Straight lift once smart-mirror is separated.",
+     "risk": "medium",
+     "approx_lines": 200
+    },
+    {
+     "new_module": "input_viewport_smart_mirror.rs",
+     "moves": "Extract the four smart-mirror blocks (click place/confirm 44-60, RMB cancel 61-65, scroll-rotate arm 171-187 stays referenced in scroll module, and the per-frame plane update 421-527) into cohesive helpers: fn smart_mirror_click(&mut self,...), fn smart_mirror_frame_update(&mut self, ctx, rect, shift, alt, ctrl). All read-phase-then-mutate patterns already isolate the &self reads (cam_ray/ray_plane_hit/raycast_scene) before as_smart_mirror_mut(), so they move as-is.",
+     "risk": "medium",
+     "approx_lines": 130
+    },
+    {
+     "new_module": "input_viewport_drag.rs",
+     "moves": "Extract the primary-drag chain (lines 600-1094) into fn handle_viewport_primary_drag(&mut self, ctx, rect, response, shift, alt, ctrl, in_sub_edit) -> DragStartFlags. This is the hard one: it is ONE `if response.dragged_by(Primary){ if let Some(mp)=...{ ...else if... }}` expression. Individual arms (falloff-drag 639-723, blend-k-drag 724-754, bevel-drag 769-854, and each drag-START arm) are candidates for sub-helpers, but they are joined by `else if` so a straight cut of one arm is impossible without converting the chain to sequential `if handled {} else if ...` guarded calls. Requires read-phase/decide/write-phase restructure, not a pure move.",
+     "risk": "high",
+     "approx_lines": 495
+    },
+    {
+     "new_module": "input_viewport_release.rs",
+     "moves": "Extract drag-release finalization (lines 1095-1304) into fn finalize_viewport_drags(&mut self, ctx, rect, pd, shift, ctrl, alt) -> (bool,bool,bool) returning (gizmo_just_finished, drag_just_finished, sel_box_just_finished). These `if tool.is_X() && !pd {...}` blocks are sequential (not else-if chained) so each lifts individually, BUT the three `*_just_finished` booleans are consumed by the later click-select guards (1497,1558), so they must be threaded out as return values \u2014 a signature change, mechanically behavior-preserving.",
+     "risk": "medium",
+     "approx_lines": 210
+    },
+    {
+     "new_module": "input_viewport_rmb.rs",
+     "moves": "Extract the secondary-click chain (lines 1305-1392) into fn handle_viewport_secondary(&mut self, response, rect, shift, ctrl, alt). Self-contained `if shift&&secondary {} else if ... {}` covering workplane place, blend-k popup, and cancel-op/context-menu. No output locals feed later blocks; straight lift.",
+     "risk": "low",
+     "approx_lines": 88
+    },
+    {
+     "new_module": "input_viewport_click.rs",
+     "moves": "Extract the click-select specialization (lines 1393-1560) into fn handle_viewport_click_select(&mut self, response, rect, shift, ctrl, alt, sel_box_just_finished, gizmo_just_finished, drag_just_finished, had_create). Covers bevel-edge click loop, the four double-click behaviours, gizmo-reset click, blend-k cycle click, and the final handle_click_select delegate. The was_double/reset_handled/blend_k_clicked locals are internal to this block and don't escape, so once the incoming *_just_finished flags are passed as params it lifts as one method.",
+     "risk": "medium",
+     "approx_lines": 168
+    },
+    {
+     "new_module": "input_viewport_drop.rs",
+     "moves": "Extract the MMB-bool-edge-reset (1566-1584) + OS file-drop + drop-hover overlay (1586-1671) into fn handle_viewport_file_drop(&mut self, ctx, ui, response, rect). Fully self-contained (reads ctx.input dropped/hovered files, paints overlay); zero locals shared with earlier blocks. Cleanest straight lift in the file.",
+     "risk": "low",
+     "approx_lines": 105
+    }
+   ],
+   "is_pure_relocation": false,
+   "extraction_blockers": [
+    "ONE METHOD, NOT MANY FUNCTIONS: the entire 1662-line body is a single method `handle_viewport_input`. There are no free-standing functions to relocate. 'Pure relocation into sibling modules' is only achievable by first extracting cohesive blocks into new PRIVATE helper methods on `impl AzraApp`, then moving those methods to sibling files. Naming follows the existing input.rs family (input_keyboard/input_viewport/input_select/input_sculpt) \u2014 each new module is declared `mod input_viewport_*;` in main.rs (see main.rs:37-40) and is an `impl AzraApp {}` block (AzraApp = FourthLayerApp alias, main.rs:1597).",
+    "SHARED FRAME-LOCAL CONTROL FLAGS force signature changes, not straight cuts: shift/alt/ctrl (line 22) are read by nearly every block; pd (601), had_create (566), in_sub_edit (373), mmb_held (567), and the sequencing booleans sel_box_just_finished/gizmo_just_finished/drag_just_finished/was_double/reset_handled/blend_k_clicked are WRITTEN in the release/click blocks and READ by the click-select guards at 1497 and 1558. Any block that produces one of these must return it; any block that consumes it must receive it as a parameter. This is mechanical and behavior-preserving but is NOT a byte-for-byte move \u2014 the orchestrator method must re-thread them.",
+    "THE PRIMARY-DRAG CHAIN (600-1094) IS NOT PURELY RELOCATABLE: it is a single `if dragged_by(Primary){ if let Some(mp){ <arm> else if <arm> ... }}` where ~20 arms are mutually exclusive via `else if`. You cannot lift one arm into its own method without converting the exclusivity to explicit `if self.try_X(mp){} else if self.try_Y(mp){}` guarded calls (each returning bool 'I handled the drag'). That is a read-phase/decide/write-phase restructure of the control flow, so the file as a whole is is_pure_relocation=false even though every OTHER block (scroll, hover, smart-mirror, release, rmb, click, drop) can be lifted as whole methods.",
+    "PERVASIVE self.scene.primitives READ-CACHE ACCESS: dozens of sites index self.scene.primitives[idx] guarded by `idx < self.scene.primitives.len()` and write via self.write_prim()/self.mirror_prim_to_graph()/self.rebake_no_undo(). These must stay exactly as-is (mutation discipline: primitives is a read-only GPU cache, graph is source of truth). Extraction must copy these call sites verbatim \u2014 no consolidation, no 'improvement' of the bounds checks, or it changes behavior.",
+    "BORROW-SPLIT PATTERNS ALREADY INLINED must be preserved on move: several arms deliberately copy fields out of `tool.current.as_X()` into a local tuple BEFORE calling self.write_prim/self.rebake (e.g. falloff 641-642, blend-k 726-729, bevel 770-775, smart-mirror 426-427) to drop the borrow on self.tool before taking &mut self elsewhere. When these arms move into helpers the same read-then-drop ordering must be reproduced exactly; a naive move that reorders the read past the mutable call will not compile (borrowck), which is itself evidence these are not context-free line moves.",
+    "gpu/volume_atlas rebuild_params is inlined in 3 places (744-749, 1221-1225, 1546-1550) as `if let Some(gpu){ if let Some(atlas){ atlas.rebuild_params(&self.scene.scene_graph) }}`. Whichever module each ends up in must keep this exact nested-borrow form; it cannot be factored to a shared helper as part of a 'pure relocation' without being a logic change (out of scope per the constraints)."
+   ],
+   "owner_worktree": "general"
+  },
+  {
+   "file": "core_engine/app/src/voxel_gpu_mesh.rs",
+   "total_lines": 1547,
+   "responsibilities": [
+    "GPU Surface-Nets MESHER: the SnParams UBO, MeshDensitySource (Dense res^3 vs sparse Atlas index+pool), VoxelChunkGpu (per-chunk POOL-slot handle + cached bind group), VoxelAtlasGpu (persistent GPU mirror of the brick atlas), and VoxelMeshGpu itself (2 compute pipelines + the shared vertex/index/indirect/counters/params POOL allocator: pool_byte_layout / ensure_pool / alloc_slot / reset_pool_allocator / ensure_chunk_gpu, the async dispatch_chunks, the resident dispatch_chunks_resident with its own timestamp-query diagnostics, and the blocking parity paths mesh_chunks / mesh_region). Plus ChunkStaging + VoxelMeshInflight (async readback) and the POOL_*/SN_MAX_IDX consts.",
+    "GPU BRUSH (density stamping): the BrushParams UBO + pack_stamp_plan, the gpu_stamp_plan legacy-code->StampPlan folder, and VoxelBrushGpu (apply/gather/scatter pipelines) with apply_stamp (blocking parity), dispatch_stamps_region (box async), dispatch_stamps_region_atlas (GPU-resident gather->brush->scatter, no readback), readback_atlas_box, plus VoxelBrushInflight (async box readback + collect).",
+    "ATLAS-PATH UNDO (GPU brick snapshots, no readback): BRICK_SLOT_BYTES const, AtlasUndoEntry, AtlasUndoRing (bounded byte-budget undo/redo ring), AtlasUndoBuilder (per-stroke first-touch brick snapshot accumulator with capture/ensure_capacity/finish), and the free fn snapshot_current (builds the inverse entry for undo/redo).",
+    "PARITY / DIAGNOSTIC HELPER: max_nn_dist \u2014 order-independent nearest-neighbour vertex-distance metric used only by the debug parity check comparing CPU vs GPU mesh output."
+   ],
+   "proposed_modules": [
+    {
+     "new_module": "voxel_gpu_mesh.rs (facade + mesher home)",
+     "moves": "KEEP mesher concern: SnParams, MeshDensitySource, VoxelChunkGpu, VoxelAtlasGpu, VoxelMeshGpu (+all methods), ChunkStaging, VoxelMeshInflight, POOL_*/SN_MAX_IDX consts, max_nn_dist. ADD mod+re-export of the two split modules.",
+     "approx_lines": 770,
+     "risk": "low"
+    },
+    {
+     "new_module": "core_engine/app/src/voxel_gpu_brush.rs",
+     "moves": "BrushParams(+pack_stamp_plan), gpu_stamp_plan, VoxelBrushGpu(+all methods), VoxelBrushInflight(+impl) \u2014 verbatim.",
+     "approx_lines": 460,
+     "risk": "low"
+    },
+    {
+     "new_module": "core_engine/app/src/voxel_gpu_undo.rs",
+     "moves": "BRICK_SLOT_BYTES, AtlasUndoEntry, AtlasUndoRing(+impl), AtlasUndoBuilder(+impl), snapshot_current \u2014 verbatim.",
+     "approx_lines": 230,
+     "risk": "low"
+    }
+   ],
+   "is_pure_relocation": true,
+   "extraction_blockers": [
+    "NONE that force a borrow restructure. This whole file is standalone GPU-plumbing types: every impl is on a type OWNED within the file (VoxelMeshGpu / VoxelBrushGpu / AtlasUndoRing / AtlasUndoBuilder / VoxelMeshInflight / VoxelBrushInflight). ZERO methods on AzraApp/FourthLayerApp; ZERO `&mut self` on the app struct; the file never touches self.scene / self.cache / self.gpu / self.primitives. The `FourthLayerApp::voxel_sync_mesh_atlas` mention is doc-comment PROSE describing an external caller, not code here \u2014 so mutation discipline and the scene-graph-as-source-of-truth rule are untouched by any split.",
+    "The only cross-concern coupling is trivially handled by re-exports, not by restructuring: (a) MeshDensitySource is defined in the mesher and is pub(crate) \u2014 the brush module does NOT actually consume it (it builds atlas bind groups inline), so no cyclic import. (b) BRICK_SLOT_BYTES is defined with the undo concern but is a plain const \u2014 if the brush's readback_atlas_box references it, that is a one-line `use` through the facade re-export, not a borrow issue. (c) The `wg = |n| (n+3)/4` workgroup helper and the dummy-buffer idiom are DUPLICATED inline in each concern already (not shared), so nothing to untangle.",
+    "External call sites (~24) all use fully-qualified `crate::voxel_gpu_mesh::Name` (main.rs GpuCtx fields, input_sculpt.rs, app_poll.rs, undo.rs, raster_render.rs). A `pub(crate) use voxel_gpu_brush::*;` + `pub(crate) use voxel_gpu_undo::*;` in the facade keeps ALL of them compiling with ZERO edits outside the three files \u2014 confirming this is a straight move, not a signature/behavior change. Register the two new `mod` declarations in main.rs (mod voxel_gpu_brush; mod voxel_gpu_undo;) alongside the existing `mod voxel_gpu_mesh;` at main.rs:77 \u2014 that is the only main.rs touch and it adds no pub(crate) fn to main.rs (rule-compliant)."
+   ],
+   "owner_worktree": "sculpt"
+  },
+  {
+   "file": "core_engine/app/src/sdf_gpu_mesh.rs",
+   "total_lines": 1344,
+   "responsibilities": [
+    "DC-pipeline plumbing (Phase G GPU QEF Dual-Contouring): DcParamsGpu POD struct + dc_params/dc_params_sparse/dc_caps helpers + build_dc_pipelines + dc_bind_group + dummy_storage + encode_dc_passes \u2014 the shared low-level building blocks over sdf_mesh.wgsl (lines 13-138).",
+    "Blocking readback harness (test/parity path): dispatch_to_staging + dispatch_readback + the free fn mesh_sdf_grid_gpu \u2014 fresh-pipeline, one-submit-then-poll(Wait) meshing used only by the parity tests (lines 140-250, minus the PendingSdfReadback type).",
+    "Async readback state machine: the pub(crate) PendingSdfReadback struct + its ready()/take() impl \u2014 the non-blocking staging-map path the live drag uses to avoid the poll(Wait) freeze (lines 196-228).",
+    "Resident mesher type SdfMeshGpu: persistent cached pipelines + all dispatch entry points (new, mesh_readback, dispatch_async, dispatch_resident, mesh_into_slot, mesh_into_slot_from_resident (G3), mesh_into_slot_sparse + dispatch_resident_sparse (Phase 3B)) \u2014 the production, no-readback, indirect-draw path (lines 252-422).",
+    "Per-body GPU buffer slot SdfBodyMeshSlot: owns the full field/params/cell_vert/verts/idx/counters/indirect buffer set + the surface-cap allocation logic in new() (lines 424-479).",
+    "DC/slot/sparse parity test suite over THIS file's own types (headless_device, parity/run_parity helpers, sdf_dc_parity_* , sdf_dc_resident_indirect, sdf_dc_slot_parity, sdf_dc_resident_field_parity, sdf_slot_512_fits_binding_limit, build_sparse_bricks/dispatch_sparse + sdf_dc_sparse_brick_decode_parity) (lines 481-986).",
+    "Volume-bake footprint/mirror test suite that builds its OWN bake pipeline from graphics::VOLUME_BAKE_WGSL + crate::gpu_jobs::BakeParams and validates against core_math SceneEvaluator \u2014 references NONE of this file's DC types (partial_bake_writes_exact_footprint, body_mirror_bake_matches_cpu_eval) (lines 988-1343)."
+   ],
+   "proposed_modules": [
+    {
+     "new_module": "core_engine/app/src/sdf_gpu_mesh/dc_pipeline.rs",
+     "moves": "The shared DC plumbing: DcParamsGpu (make pub(crate) so siblings can construct/read it), dc_params, dc_params_sparse, dc_caps, build_dc_pipelines, dc_bind_group, dummy_storage, encode_dc_passes (current lines 13-138). Every one is already a private free fn with only explicit &wgpu args \u2014 a straight cut/paste. Siblings import them via `use super::dc_pipeline::*` (or a re-export). NOTE: this move requires promoting these fns + DcParamsGpu from private to pub(crate) so the readback/resident/test modules can call them across the module boundary \u2014 a visibility change, NOT a logic change, so still a pure relocation.",
+     "approx_lines": 130,
+     "risk": "low"
+    },
+    {
+     "new_module": "core_engine/app/src/sdf_gpu_mesh/readback.rs",
+     "moves": "The blocking + async readback layer: dispatch_to_staging, PendingSdfReadback struct + its impl (ready/take), dispatch_readback, and the free fn mesh_sdf_grid_gpu (current lines 140-250). PendingSdfReadback stays pub(crate) and must be re-exported from the parent mod so `crate::sdf_gpu_mesh::PendingSdfReadback` (used in cache_state.rs:110) keeps resolving. Depends only on dc_pipeline items via `use super::dc_pipeline::*`. Pure cut/paste + re-export.",
+     "approx_lines": 115,
+     "risk": "low"
+    },
+    {
+     "new_module": "core_engine/app/src/sdf_gpu_mesh/resident.rs",
+     "moves": "The production resident mesher + slot: SdfMeshGpu (struct + full impl incl. dispatch_resident/dispatch_async/mesh_readback/mesh_into_slot/_from_resident/_sparse/dispatch_resident_sparse) and SdfBodyMeshSlot (struct + new). Current lines 252-479. Both types stay pub(crate) and MUST be re-exported from the parent mod so `crate::sdf_gpu_mesh::SdfMeshGpu` / `::SdfBodyMeshSlot` (main.rs:794, cache_state.rs:75, app_poll.rs) keep resolving unchanged. dispatch_async returns readback::PendingSdfReadback (add `use super::readback::PendingSdfReadback`). Consumes dc_pipeline helpers via `use super::dc_pipeline::*`. Pure cut/paste; the only edits are import lines + the parent re-export.",
+     "approx_lines": 230,
+     "risk": "low"
+    },
+    {
+     "new_module": "core_engine/app/src/sdf_gpu_mesh/tests_dc.rs",
+     "moves": "The DC/slot/sparse parity tests + their helpers that exercise THIS module's own types: headless_device, sd_round_box/sd_sphere/bake_grid/cpu_mesh/parity/run_parity, sdf_dc_parity_beveled_box/_boolean_subtract/_nonsymmetric_box, sdf_dc_resident_indirect, sdf_dc_slot_parity, sdf_dc_resident_field_parity, sdf_slot_512_fits_binding_limit, build_sparse_bricks/dispatch_sparse + sdf_dc_sparse_brick_decode_parity (current lines 481-986, sans the two bake tests). Declared as `#[cfg(test)] mod tests_dc;` from the parent; `use super::dc_pipeline::*; use super::readback::*; use super::resident::*;` replaces the current `use super::*`. Pure relocation of test code.",
+     "approx_lines": 505,
+     "risk": "medium"
+    },
+    {
+     "new_module": "core_engine/app/src/sdf_gpu_mesh/tests_bake.rs",
+     "moves": "The two volume-bake tests that build their OWN bake pipeline and touch NONE of this file's DC types: partial_bake_writes_exact_footprint and body_mirror_bake_matches_cpu_eval, plus a copy of the shared headless_device helper (or lift headless_device into a tiny shared test-util). Current lines 988-1343. They already import graphics::VOLUME_BAKE_WGSL / crate::gpu_jobs::BakeParams / core_math::* by full path, so no import changes beyond headless_device. Cleanest split because these tests are conceptually the bake mesher's tests sitting in the DC mesher's file. Pure relocation.",
+     "approx_lines": 360,
+     "risk": "medium"
+    }
+   ],
+   "is_pure_relocation": true,
+   "extraction_blockers": [
+    "NO &mut self / AzraApp borrows exist in this file \u2014 confirmed by grep: zero `impl AzraApp`, zero `&mut self`, zero `self.primitives`/scene-graph access. Every function is a free fn or a method on the three LOCAL structs, all taking &wgpu::Device / &wgpu::Queue explicitly. There is nothing to restructure into read/decide/write phases; a straight module split compiles as-is. This is why is_pure_relocation=true.",
+    "Mutation discipline is untouched: this module never writes prims, the scene graph, or self.primitives \u2014 it is a pure GPU-utility module (bake\u2192DC-mesh\u2192indirect-draw buffers). No transaction()/write_prim()/dirty-flag surface is involved, so the split cannot affect source-of-truth invariants.",
+    "The ONLY non-mechanical part is visibility: the current free fns + DcParamsGpu are private (module-private), so splitting them into sibling files requires promoting them to pub(crate) (or re-exporting) so the readback/resident/test siblings can reach them across the new module boundary. This is a visibility widening, not a logic change \u2014 behavior is 100% preserved.",
+    "Re-export requirement (must-do or external callers break, NOT a behavior change): cache_state.rs, main.rs, and app_poll.rs reference SdfMeshGpu, SdfBodyMeshSlot, and PendingSdfReadback via `crate::sdf_gpu_mesh::<Type>`. Converting sdf_gpu_mesh.rs into a `sdf_gpu_mesh/mod.rs` directory module, the mod MUST `pub(crate) use resident::{SdfMeshGpu, SdfBodyMeshSlot}; pub(crate) use readback::PendingSdfReadback;` so those existing paths keep resolving with zero edits at the call sites.",
+    "Naming-convention note (not a blocker, a flag): the repo convention (scene->scene_actions.rs, prims->prim_actions.rs) is about WHERE NEW app-logic functions go; it does not cleanly map to this GPU-utility file. The proposed submodule folder `sdf_gpu_mesh/{dc_pipeline,readback,resident}.rs` keeps the existing `sdf_gpu_mesh` namespace (so `crate::sdf_gpu_mesh::*` re-exports are stable) rather than inventing a `*_actions.rs` name that would misfile GPU plumbing. Confirm the folder-module shape is acceptable before executing; an alternative is flat sibling files `sdf_dc_pipeline.rs` / `sdf_mesh_readback.rs` / `sdf_mesh_resident.rs` with `pub(crate) use` re-exports from a thin `sdf_gpu_mesh.rs`.",
+    "The #[allow(dead_code)] attributes on PendingSdfReadback::impl, SdfMeshGpu::impl, SdfBodyMeshSlot, and mesh_sdf_grid_gpu must travel WITH the moved items (they suppress warnings for test-only / not-yet-wired entry points). Trivial to carry, but easy to drop in a hasty cut \u2014 call it out so the relocation stays warning-clean."
+   ],
+   "owner_worktree": "master"
+  },
+  {
+   "file": "core_engine/app/src/raster_render.rs",
+   "total_lines": 1303,
+   "responsibilities": [
+    "MESH-CACHE PROVISIONING per body type: ensure_body_meshes (SDF DC bake requests + LOD), ensure_poly_meshes (half-edge tessellation), ensure_nurbs_meshes (NURBS tessellation), upgrade_mesh_lod (Preview->Medium->High promotion), poll_mesh_cache (drain async jobs, upload GPU buffers). Lines ~102-348. All share body_aabb_bounds + the BODY_LOCAL_PRIMS local-prim offset idiom.",
+    "RASTER G-BUFFER PASS: dispatch_raster_pass \u2014 the ~575-line core (355-929). Walks all_nodes, builds per-node draw_calls/materials/instances with the full display-state gate (isolation ghost bit, selection bit, volume-preview skip, tool-drag skip, resident-slot vs mesh-cache vs display-state routing), computes the move-grab camera uniform, then encodes 3 shadow cascades + the 4-target G-buffer pass and submits its own command buffer.",
+    "GPU COLOR-ID PICKING: pick_node_at (936-1187) builds node-id-tagged draw calls + per-draw instance buffers and renders the picking pass; poll_pending_pick (1191-1205) lands the async readback. Duplicates the per-node draw-selection walk of dispatch_raster_pass (SDF/Imported/Voxel/Poly/NURBS + resident-chunk + sdf-resident-slot handling) against a different pipeline.",
+    "LOW-LEVEL DRAW HELPERS (private free fns, module-local only): draw_resident_pool_with_instance + draw_resident_pool (voxel-chunk pool multi_draw_indexed_indirect), draw_sdf_resident_slot (GPU-resident QEF-DC slot indirect draw), body_aabb_bounds (thin delegate to body_volume_cache). Lines 40-99.",
+    "SELECTION-STATE MUTATORS: select_scene_node (1209-1213, single-select + activate translate gizmo), deselect_scene_node (1216-1220). Pure scene-state edits, no GPU \u2014 belong with the outliner/selection convention, not raster.",
+    "ASSET IMPORT UI FLOW: import_gltf_dialog (1223-1301) \u2014 rfd file dialog, io_bridge glTF import, material/mesh-cache/scene-graph node creation, switch to Hybrid mode. Unrelated to rasterization; a scene-authoring action."
+   ],
+   "proposed_modules": [
+    {
+     "new_module": "core_engine/app/src/raster_mesh_prep.rs",
+     "moves": "The 5 mesh-cache provisioning methods (poll_mesh_cache, ensure_body_meshes, ensure_poly_meshes, ensure_nurbs_meshes, upgrade_mesh_lod) + the private body_aabb_bounds helper they all call. Straight move as an `impl super::AzraApp` block; re-export nothing (methods stay on AzraApp, mod declared in main.rs). body_aabb_bounds stays private to this file (its only callers move with it, except dispatch_raster_pass/upgrade both use it \u2014 see risk).",
+     "approx_lines": 260,
+     "risk": "low"
+    },
+    {
+     "new_module": "core_engine/app/src/raster_gbuffer.rs",
+     "moves": "dispatch_raster_pass in full, plus the 3 private draw helpers it and picking share: draw_resident_pool_with_instance, draw_resident_pool, draw_sdf_resident_slot. Move as `impl super::AzraApp`. Because picking (separate module) also calls the 3 helpers and body_aabb_bounds is called by the mesh-prep module, the shared private fns must become `pub(crate)` free fns in ONE module (or a tiny raster_common.rs) and be referenced by path from the others.",
+     "approx_lines": 590,
+     "risk": "medium"
+    },
+    {
+     "new_module": "core_engine/app/src/raster_pick.rs",
+     "moves": "pick_node_at + poll_pending_pick. Move as `impl super::AzraApp`. Depends on the 3 shared draw helpers (draw_resident_pool_with_instance, draw_sdf_resident_slot) which must be reachable as pub(crate) from raster_gbuffer.rs or a common module.",
+     "approx_lines": 275,
+     "risk": "medium"
+    },
+    {
+     "new_module": "core_engine/app/src/scene_actions.rs (existing) / outliner_actions.rs",
+     "moves": "select_scene_node + deselect_scene_node relocate to the existing selection/scene-action home per the naming convention (scene->scene_actions.rs). import_gltf_dialog relocates to scene_actions.rs (scene-authoring import) \u2014 NOT a raster concern. Both are straight method moves.",
+     "approx_lines": 95,
+     "risk": "low"
+    }
+   ],
+   "is_pure_relocation": true,
+   "extraction_blockers": [
+    "SHARED PRIVATE FREE FNS span the split. draw_resident_pool_with_instance / draw_resident_pool / draw_sdf_resident_slot are used by BOTH dispatch_raster_pass (raster_gbuffer.rs) AND pick_node_at (raster_pick.rs). body_aabb_bounds is used by BOTH the mesh-prep module AND dispatch_raster_pass. Splitting requires promoting these from module-private `fn` to `pub(crate) fn` in one owning module (cleanest: a small raster_common.rs) and importing by path. This is a visibility change, not a logic change \u2014 behavior is 100% preserved, so it still qualifies as pure relocation, but it is the one non-trivial coupling the mover must handle deliberately.",
+    "DISJOINT-FIELD BORROW RELIANCE (must stay methods, NOT free fns). dispatch_raster_pass (817, 913) and pick_node_at (1059, 1164) read &self.cache.mesh_cache / &self.scene.scene_graph WHILE `let Some(gpu) = &mut self.gpu` is live. This only compiles because gpu/cache/scene/voxel are disjoint fields of AzraApp borrowed through one &mut self. Moving each function into a sibling module as an `impl super::AzraApp` method preserves the single-&mut-self shape exactly -> compiles unchanged. Converting any of them to a free `fn(app: &mut AzraApp)` would break (can't hold &mut app.gpu and &app.cache via one &mut app) and would force a read-phase/write-phase restructure. Constraint: relocate as methods only; do not free-function-ify.",
+    "poll_mesh_cache calls self.poll_sdf_mesh_jobs(), which lives in app_poll.rs (already a cross-module method call today). Moving poll_mesh_cache to raster_mesh_prep.rs keeps this a cross-module `self.` call \u2014 no change needed; noted only so the mover doesn't assume poll_sdf_mesh_jobs must move too (it must NOT).",
+    "dispatch_raster_pass and pick_node_at duplicate the same per-node draw-selection walk (SdfBody/ImportedMesh/VoxelBody/Poly/NURBS + resident-chunk + sdf-resident routing). The task is PURE RELOCATION, so this duplication must be MOVED AS-IS into the two modules, NOT de-duplicated. Flag for a future task; do not fold it into this split.",
+    "select_scene_node / deselect_scene_node / import_gltf_dialog are not rasterization code and are only grouped here incidentally. They have no GPU-borrow entanglement (import_gltf_dialog uses only immutable &self.gpu) and move cleanly to scene_actions.rs, matching the file-organization rule (scene->scene_actions.rs)."
+   ],
+   "owner_worktree": "master"
+  },
+  {
+   "file": "core_engine/app/src/input_keyboard.rs",
+   "total_lines": 1236,
+   "responsibilities": [
+    "Global keyboard bootstrap + focus surrender: releases egui widget focus when the pointer is over the viewport, computes `any_text`/`tab_held` gates (lines 9-21).",
+    "Sculpt-mode keyboard: brush size Z/X, remesh (Ctrl+R), voxelize-pending Enter \u2014 all gated on WorkMode::Sculpt + self.voxel.is_some() (lines 23-71).",
+    "Shortcut-rebinding capture: when `self.ui.rebinding_action` is set, grabs the next key event and writes it to self.keybindings (lines 72-88).",
+    "Keybind pre-decode: three giant `ctx.input(...)` tuples (`p`, `q2`) + `elongate/clip` + `PolyKeyFlags` + `NurbsKeyFlags` + general-action tuple \u2014 read-only decode of self.keybindings into ~90 local bool flags before any mutation (lines 89-195).",
+    "Global app/UI shortcuts: add-menu popup, shortcut-editor toggle, command palette, layout settings, workspace switch Ctrl+1-4, Q-menu, export window, content library (lines 196-221, 202-204, 306-310, 339-340).",
+    "File shortcuts: save / save-as / open / new, with unsaved-changes dialog routing (lines 341-359).",
+    "Poly sub-mode keyboard (edit-mode only): bare 1/2/3 vertex/edge/face switch, invert/grow/shrink/hide/unhide/select-linked selection (lines 222-262).",
+    "Object-mode hide/unhide (H / Alt+H) via transaction over prims + graph nodes (lines 263-305).",
+    "Undo/redo + bevel-reset (Z) + workplane-place (Home) (lines 311-338).",
+    "Universal Escape -> drop_tool cascade (lines 360-363).",
+    "Modal transform tool keys: X/Y/Z axis constraint, numeric input, confirm/update (lines 364-383).",
+    "Poly transform tool keys: axis constraint, numeric input, confirm/update (lines 384-409).",
+    "Creation tool keys: cut-through, bevel round/chamfer toggle, cycle-op/join, numeric extrude depth entry (lines 410-482).",
+    "Smart-mirror tool keys: X/Y/Z axis plane set, confirm (lines 483-513).",
+    "Poly modal tool keys: bevel / extrude / inset drag update + confirm (lines 514-533).",
+    "Poly & NURBS edit-key dispatch delegation: poly_handle_keys(&pkf), nurbs_handle_keys(&nkf), knife confirm (lines 535-551).",
+    "Create-armed tool keys: drop tool + boolean-op set (sub/add/int) (lines 552-561).",
+    "Smart-mirror tool arming (from idle): raycast/workplane plane setup + start_operation (lines 562-602).",
+    "Symmetry keyboard: toggle, axis X/Y/Z, flip, symmetrize, delete-half, radial-cycle (lines 603-612).",
+    "Material-assign popup toggle (Ctrl+M) (lines 613-622).",
+    "Wireframe overlay toggle (Shift+Z) (lines 623-628).",
+    "Pie-menu drivers (open/update-hover/tick/release) for FIVE pies: Z shading pie, backtick view pie, F utility pie, Tab mode-switch pie, reset pie, D pivot pie (lines 629-936).",
+    "Gizmo arming: light G/R/S via start_modal_transform, unified G/S/R gizmo arm, E elongate gizmo arm (lines 810-851).",
+    "Bevel/extrude mode toggles (B / E) with auto-commit of active tools (lines 852-906).",
+    "Transform-space toggle (T) (lines 937-938).",
+    "Delete dispatch: light delete / graph-node delete transaction / delete_selected (lines 939-977).",
+    "SDF boolean cycling (X): per-prim operation cycle + per-body body_op cycle + two-body nest-subtract reparent (lines 978-1065).",
+    "Clip-curve draw (C / Enter) enter+commit (lines 1066-1078).",
+    "Duplicate (Shift+D) for light / poly / generic + arm move (lines 1079-1088).",
+    "Universal clipboard Ctrl+C/X/V (lines 1089-1098).",
+    "Group/dissolve: Ctrl+Shift+G dissolve body, Ctrl+G group-into-body, instance key, N new-sdf-body (lines 1099-1131).",
+    "Select-all / deselect-all (A / Alt+A) across poly-edit, poly-object, generic-object contexts (lines 1133-1200).",
+    "Numpad view shortcuts (1/3/7 front/right/top), ortho toggle, Space multi-purpose drop/clear/exit/deselect (lines 1201-1231)."
+   ],
+   "proposed_modules": [
+    {
+     "new_module": "core_engine/app/src/input_keyboard_sculpt.rs",
+     "moves": "Extract lines 23-71 (sculpt brush-size Z/X, remesh Ctrl+R, voxelize-pending Enter) into `pub(crate) fn handle_keyboard_sculpt(&mut self, ctx: &egui::Context, any_text: bool)`. Self-contained: reads its own ctx.input and self.input_system bindings, only mutates self.voxel + mark_dirty. Called near the top of handle_keyboard, before the `if !any_text` block (it already re-checks !any_text internally). Declared `mod input_keyboard_sculpt;` in main.rs. No re-export needed (impl AzraApp).",
+     "risk": "low",
+     "approx_lines": 49
+    },
+    {
+     "new_module": "core_engine/app/src/input_keyboard_rebind.rs",
+     "moves": "Extract lines 72-88 (shortcut-rebinding capture) into `pub(crate) fn handle_keyboard_rebind(&mut self, ctx: &egui::Context, any_text: bool)`. Reads ctx events, mutates self.ui.rebinding_action / self.ui.keybind_conflicts / self.keybindings. Fully independent of the pre-decoded `kb` flags. Called before the main `if !any_text` block.",
+     "risk": "low",
+     "approx_lines": 17
+    },
+    {
+     "new_module": "core_engine/app/src/input_keyboard_pies.rs",
+     "moves": "Extract the six pie-menu drivers \u2014 Z shading pie (629-670), backtick view pie (671-715), F utility pie (716-742), Tab mode pie (743-784), reset pie (785-809), D pivot pie (907-936) \u2014 into `pub(crate) fn handle_keyboard_pies(&mut self, ctx: &egui::Context, mpos: egui::Pos2, tab_consumed: bool, tab_held: bool, z: bool, f: bool, pivot_ed: bool)`. Each pie block is a self-contained open/update/tick/release state machine reading ctx.input + self.ui.*_pie + self.viewport/render, mutating self.ui pies + render + viewport.camera. Decoded trigger flags (z, f, pivot_ed) and mpos are passed by value from the parent so no `kb` re-borrow is needed. NOTE the D-pie code at 907-936 is physically interleaved with the pivot-toggle-open block at 907-916 and the gizmo/bevel code around it \u2014 moving the pie DRIVER blocks is clean, but the pie-OPEN triggers (631-637 z_pie.open, 674-679 view_pie.open, 718-724 f_pie.open, 744-753 tab_pie.open, 908-916 d_pie.open) are woven between other keyboard handlers; they can move with their drivers but the extraction must lift matched open+drive pairs together and keep call order (pies close each other on open).",
+     "risk": "medium",
+     "approx_lines": 260
+    },
+    {
+     "new_module": "core_engine/app/src/input_keyboard_tools.rs",
+     "moves": "Extract the active-tool modal key branches \u2014 modal transform (364-383), poly transform (384-409), creation-tool keys (410-482), smart-mirror keys (483-513), poly bevel/extrude/inset modals (514-533) \u2014 into `pub(crate) fn handle_keyboard_active_tool(&mut self, ctx: &egui::Context, mpos: egui::Pos2, flags: KbToolFlags) -> bool` returning whether a tool branch consumed the frame (the original `else if` chain). Needs a small `KbToolFlags { x, y, z, enter, esc, cut_through, create_bevel, cycle_op, create_join }` by-value struct (same pattern as PolyKeyFlags). Because these are the leading arms of the big `if is_transform() ... else if is_create() ... else { normal }` chain, extraction requires returning a bool so the parent can gate the `else { normal keyboard }` block on it \u2014 a straight move of the arms plus a consumed-flag return, not a logic change.",
+     "risk": "medium",
+     "approx_lines": 170
+    },
+    {
+     "new_module": "core_engine/app/src/input_keyboard_normal.rs",
+     "moves": "Extract the entire `else { normal keyboard }` block (534-1232): poly/nurbs key delegation, create-armed keys, smart-mirror arm, symmetry, material-assign, wireframe, gizmo arm (G/S/R/E), bevel/extrude toggle, transform-space, delete dispatch, SDF boolean cycle, clip-curve, duplicate, clipboard, group/dissolve/instance/new-body, select-all/deselect, numpad views, Space. Signature `pub(crate) fn handle_keyboard_normal(&mut self, ctx: &egui::Context, mpos: egui::Pos2, tab_consumed: bool, tab_held: bool, flags: KbNormalFlags, pkf: &PolyKeyFlags, nkf: &NurbsKeyFlags)`. ALL ~60 decoded bools it consumes are already plain `let` locals (not `kb` borrows), so they pass by value in a flags struct exactly like poly_handle_keys already does. This is the bulk of the file and the highest-value relocation, but it is large and touches nearly every AzraApp sub-struct; if the pies (input_keyboard_pies.rs) are extracted first, this block shrinks by ~260 lines and the two extractions compose cleanly.",
+     "risk": "medium",
+     "approx_lines": 430
+    }
+   ],
+   "is_pure_relocation": false,
+   "extraction_blockers": [
+    "The `kb` immutable borrow spanning lines 90-195. `let kb = &self.keybindings;` is held while ~90 `kb.pressed(...)` decodes run, THEN the whole body mutates `self`. This already forces a decode-then-act split in the original (all keybinds are pre-evaluated 'to avoid borrow conflicts', per the in-file comments at 110, 136, 170, 917). Extraction is only a pure move if every sub-fn receives the ALREADY-DECODED bool locals by value (in a flags struct, matching the existing PolyKeyFlags/NurbsKeyFlags pattern) \u2014 a sub-fn must NOT re-borrow `self.keybindings` while it also takes `&mut self`. Passing the flags by value is a straight relocation; the parent keeps the decode phase. is_pure_relocation=false is set ONLY because the active-tool `if/else if` chain (module input_keyboard_tools.rs) must be turned into a bool-returning fn so the parent can gate the `else` arm \u2014 that is a trivial control-flow adaptation, not a behavior change, but it is technically more than a byte-for-byte cut/paste.",
+    "The active-tool branches (364-533) and the normal-keyboard block (534-1232) form ONE `if is_transform() {} else if is_poly_transform() {} else if is_create() {} else if is_smart_mirror() {} else if is_poly_bevel() {} else if is_poly_extrude() {} else if is_poly_inset() {} else { normal }` chain. Splitting the head arms from the `else` tail requires the extracted head fn to signal 'a branch fired' (return bool) so the parent only runs the normal block when none did. Preserves behavior exactly but is not a naive move.",
+    "Pie open-triggers are physically interleaved with unrelated handlers inside the normal block (z_pie open at 631, view_pie at 674, f_pie at 718, tab_pie at 744, d_pie at 908, with gizmo/bevel/delete code between them). Each pie's open-trigger and its drive-loop must be lifted together into input_keyboard_pies.rs, preserving the mutual close-on-open ordering (each open sets the other pies' .open=false). This is a gather-and-move, not a contiguous slice \u2014 slightly higher risk of leaving a dangling reference than the block extractions.",
+    "Every extracted fn takes `&mut self` (AzraApp) and touches many sub-structs (self.tool, self.ui, self.sel, self.scene, self.render, self.viewport, self.cache, self.poly_sel). There is no partial-borrow hazard because each sub-fn owns the full &mut self for its whole body (same as the parent does today) \u2014 but it does mean the extractions cannot run concurrently and must be sequenced by the parent exactly in the current top-to-bottom order (some later blocks read state that earlier blocks set, e.g. `elongate_consumed` at 842 gates extrude_tog at 881; these two must stay in the SAME extracted module or the consumed flag must be threaded through)."
+   ],
+   "owner_worktree": "general"
+  }
+ ],
+ "hardens": [
+  {
+   "file": "core_engine/app/src/app_poll.rs",
+   "count_real_risk": 4,
+   "count_invariant_safe": 41,
+   "count_test_only": 0,
+   "real_crash_risks": [
+    {
+     "line": 497,
+     "code": "self.toast(&format!(\"\\u{274C} Node graph parse error: {}\", &e.to_string()[..e.to_string().len().min(80)]));",
+     "trigger": "poll_claude, ClaudeKind::GenerateNodeGraph: Claude returns text that fails serde_json parsing. `e` is a serde_json::Error whose to_string() embeds the offending input. If that message is >=80 bytes AND byte offset 80 lands inside a multi-byte UTF-8 char (any accented/CJK/emoji content the AI echoed back), `&s[..80]` panics 'byte index 80 is not a char boundary' and takes down the frame. Network/AI-driven data on the per-frame poll path.",
+     "fix": "Replace byte-slice truncation with char-safe truncation: build the string once, then `let m: String = e.to_string().chars().take(80).collect();` and interpolate `m`. Matches the existing idiom at win_ai.rs:140 (`.chars().take(N).collect()`). Truncates to 80 chars instead of 80 bytes; never splits a codepoint, so it cannot panic. Behavior preserved (still a short prefix in the toast)."
+    },
+    {
+     "line": 513,
+     "code": "self.toast(&format!(\"\\u{274C} Claude error: {}\", &e[..e.len().min(80)]));",
+     "trigger": "poll_claude Err arm: `e` is the Claude API error String (claude.rs poll() returns Result<_, String>). API/network error bodies can contain non-ASCII (echoed prompt text, JSON with unicode, provider messages). If e.len() >= 80 and byte 80 is not a char boundary, `&e[..80]` panics and crashes the frame from inside poll_background_tasks.",
+     "fix": "Change to `let short: String = e.chars().take(80).collect();` and format `short`. (The full error is still preserved in self.ai.code_review_err via e.clone() on the line above, so nothing is lost.) Char-based take never splits a codepoint => no panic."
+    },
+    {
+     "line": 568,
+     "code": "self.ai.ai_service_status = Some(format!(\"Error: {}\", &e[..e.len().min(60)]));",
+     "trigger": "poll_ai_service, AiResponse::Error(String) arm: `e` is an AI-service error string built from IO/network failures (ai_client.rs: format!(\"... failed: {e}\") etc.), which can carry non-ASCII (file paths, OS error text, server messages). If e.len() >= 60 and byte 60 is mid-UTF-8-char, `&e[..60]` panics on the poll path.",
+     "fix": "Compute one char-safe prefix before the two uses: `let short: String = e.chars().take(60).collect();` then use `short` in both the status (568) and the toast (569). Reuses the codebase's .chars().take(N).collect() pattern; cannot split a codepoint."
+    },
+    {
+     "line": 569,
+     "code": "self.toast(&format!(\"AI: {}\", &e[..e.len().min(60)]));",
+     "trigger": "Same AiResponse::Error(String) arm, second byte-slice of the same non-ASCII-capable error String; independently panics on a mid-char byte-60 boundary even if line 568 were fixed. Both slices of `e` must be made char-safe.",
+     "fix": "Use the shared `short` (`e.chars().take(60).collect::<String>()`) introduced for line 568 here as well, so both toast and status truncate on char boundaries and neither can panic."
+    }
+   ]
+  },
+  {
+   "file": "core_engine/app/src/viewport_render.rs",
+   "real_crash_risks": [],
+   "count_test_only": 2,
+   "count_invariant_safe": 19,
+   "count_real_risk": 0
+  },
+  {
+   "file": "F:\\PROJECT\\FourthLAyerAi\\core_engine\\app\\src\\sdf_gpu_mesh.rs",
+   "real_crash_risks": [],
+   "count_test_only": 64,
+   "count_invariant_safe": 15,
+   "count_real_risk": 0
+  },
+  {
+   "file": "F:\\PROJECT\\FourthLAyerAi\\core_engine\\app\\src\\voxel_gpu_mesh.rs",
+   "count_real_risk": 0,
+   "count_invariant_safe": 30,
+   "count_test_only": 9,
+   "real_crash_risks": []
+  },
+  {
+   "file": "core_engine/app/src/raster_render.rs",
+   "real_crash_risks": [],
+   "count_test_only": 0,
+   "count_invariant_safe": 16,
+   "count_real_risk": 0
+  },
+  {
+   "file": "core_engine/app/src/gpu_init.rs",
+   "real_crash_risks": [],
+   "count_test_only": 0,
+   "count_invariant_safe": 2,
+   "count_real_risk": 0
+  },
+  {
+   "file": "core_engine/app/src/body_volume_cache/mod.rs",
+   "count_test_only": 0,
+   "count_invariant_safe": 4,
+   "count_real_risk": 0,
+   "real_crash_risks": []
+  },
+  {
+   "file": "core_engine/app/src/body_volume_cache/bake_dispatch.rs",
+   "real_crash_risks": [],
+   "count_real_risk": 0,
+   "count_invariant_safe": 3,
+   "count_test_only": 0
+  }
+ ]
+}

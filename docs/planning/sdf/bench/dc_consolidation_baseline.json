@@ -1,0 +1,155 @@
+{
+  "bodies": [
+    {
+      "bake_full_ms_TODO_owner_run": null,
+      "dc_extract_ms_TODO_owner_run": null,
+      "frame_p50_drag_ms_TODO_owner_run": null,
+      "frame_p95_drag_ms_TODO_owner_run": null,
+      "golden_hash": "0xdfef82593cbaa428",
+      "golden_res": 96,
+      "grid_max": [
+        1.75,
+        1.5,
+        1.75
+      ],
+      "grid_min": [
+        -1.75,
+        -1.5,
+        -1.75
+      ],
+      "hole_ratio_TODO_owner_run": null,
+      "mesh_vram_bytes_theoretical": 990304,
+      "name": "RefBoxBevelSub",
+      "path": "field-direct / DenseResident",
+      "pct_incremental_TODO_owner_run": null,
+      "pool_vram_bytes_TODO_owner_run": null,
+      "regime": "box+bevel+sub",
+      "regime_res": 128,
+      "tris": 33856,
+      "verts": 18251
+    },
+    {
+      "bake_full_ms_TODO_owner_run": null,
+      "dc_extract_ms_TODO_owner_run": null,
+      "frame_p50_drag_ms_TODO_owner_run": null,
+      "frame_p95_drag_ms_TODO_owner_run": null,
+      "golden_hash": "0x23c7b5455afdbfaa",
+      "golden_res": 96,
+      "grid_max": [
+        1.875,
+        1.875,
+        1.875
+      ],
+      "grid_min": [
+        -1.875,
+        -1.875,
+        -1.875
+      ],
+      "hole_ratio_TODO_owner_run": null,
+      "mesh_vram_bytes_theoretical": 1450336,
+      "name": "RefCsg3Prim",
+      "path": "field-direct",
+      "pct_incremental_TODO_owner_run": null,
+      "pool_vram_bytes_TODO_owner_run": null,
+      "regime": "CSG 3-prim",
+      "regime_res": 256,
+      "tris": 49384,
+      "verts": 26804
+    },
+    {
+      "bake_full_ms_TODO_owner_run": null,
+      "dc_extract_ms_TODO_owner_run": null,
+      "frame_p50_drag_ms_TODO_owner_run": null,
+      "frame_p95_drag_ms_TODO_owner_run": null,
+      "golden_hash": "0x6a06b406c632da9c",
+      "golden_res": 96,
+      "grid_max": [
+        2.5531251430511475,
+        2.3625001907348633,
+        2.8187499046325684
+      ],
+      "grid_min": [
+        -2.403125047683716,
+        -1.7625000476837158,
+        -2.21875
+      ],
+      "hole_ratio_TODO_owner_run": null,
+      "mesh_vram_bytes_theoretical": 650720,
+      "name": "RefOrganicSparse",
+      "path": "SparseTiledResident (atlas + C2)",
+      "pct_incremental_TODO_owner_run": null,
+      "pool_vram_bytes_TODO_owner_run": null,
+      "regime": "organic",
+      "regime_res": 512,
+      "tris": 21768,
+      "verts": 12172
+    },
+    {
+      "bake_full_ms_TODO_owner_run": null,
+      "dc_extract_ms_TODO_owner_run": null,
+      "frame_p50_drag_ms_TODO_owner_run": null,
+      "frame_p95_drag_ms_TODO_owner_run": null,
+      "golden_hash": "0x1033d5af4136249c",
+      "golden_res": 96,
+      "grid_max": [
+        2.0,
+        1.122499942779541,
+        2.0
+      ],
+      "grid_min": [
+        -2.0,
+        -0.9025000333786011,
+        -2.0
+      ],
+      "hole_ratio_TODO_owner_run": null,
+      "mesh_vram_bytes_theoretical": 1074688,
+      "name": "RefDetailedSparse",
+      "path": "SparseTiledResident + overflow/grow",
+      "pct_incremental_TODO_owner_run": null,
+      "pool_vram_bytes_TODO_owner_run": null,
+      "regime": "detailed",
+      "regime_res": 1024,
+      "tris": 36768,
+      "verts": 19796
+    },
+    {
+      "bake_full_ms_TODO_owner_run": null,
+      "dc_extract_ms_TODO_owner_run": null,
+      "frame_p50_drag_ms_TODO_owner_run": null,
+      "frame_p95_drag_ms_TODO_owner_run": null,
+      "golden_hash": "0x11b48acb7f451bde",
+      "golden_res": 96,
+      "grid_max": [
+        1.625,
+        2.012500047683716,
+        1.625
+      ],
+      "grid_min": [
+        -1.625,
+        -2.112499952316284,
+        -1.625
+      ],
+      "hole_ratio_TODO_owner_run": null,
+      "mesh_vram_bytes_theoretical": 984976,
+      "name": "RefNestedSubBody",
+      "path": "recursive hash (nested child)",
+      "pct_incremental_TODO_owner_run": null,
+      "pool_vram_bytes_TODO_owner_run": null,
+      "regime": "nested sub-body",
+      "regime_res": 256,
+      "tris": 33820,
+      "verts": 18098
+    }
+  ],
+  "branch": "feat/sparse-3a",
+  "determinism": "GO (see dc_gate0_golden_determinism)",
+  "gate": 0,
+  "golden_res_uniform": 96,
+  "golden_source": "CPU chunked_dc oracle (BodyField::from_graph -> bake_body_grid_field -> ChunkedMesh::to_mesh); FNV-1a over vert-bits + quad indices",
+  "head": "c210425",
+  "todo_owner_run": {
+    "how": "Run the app, open the ref scene, enable Perf HUD + CPU Frame Profiler + Profiler overlay, run the scripted deterministic prim drag, then read: frame p50/p95 (drag), bake full/partial ms, per-body DC ms (self.perf.vol_dc_ms), live pool VRAM (SdfMeshPool::body_vram_bytes), % incremental (vol_partial_rebakes/(full+partial)), hole ratio (SdfMeshPool::hole_ratio).",
+    "why": "The AZRA exe is locked to the owner; the runtime metrics below cannot be captured headlessly.",
+    "wired_this_gate": "vol_full_rebakes/vol_partial_rebakes, vol_dc_ms, sdf_pool_body_bytes, sdf_pool_hole_ratio, frame_percentile() — now populated (were dead)."
+  }
+}

@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AZRA Tool Tab Interactive Prototype</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap");
+
+    :root {
+      color-scheme: dark;
+      --font-ui: "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+      --page: #090a0b;
+      --panel: #141516;
+      --head: #191b1d;
+      --body: #1d1f20;
+      --line: #18191b;
+      --field: #3f4143;
+      --field-hot: #4b4d50;
+      --field-border: #25272a;
+      --text: #e2e3e4;
+      --child-text: #c5c9ce;
+      --muted: #8d9298;
+      --accent: #f0a629;
+      --blue: #4f8fdc;
+      --border: #050607;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: var(--page);
+      color: var(--text);
+      font-family: var(--font-ui);
+    }
+
+    .tool-panel {
+      width: 340px;
+      background: var(--panel);
+      border: 2px solid var(--border);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .tool-header {
+      height: 30px;
+      display: grid;
+      grid-template-columns: 24px 1fr 30px;
+      align-items: center;
+      background: var(--head);
+      border-bottom: 1px solid var(--line);
+      user-select: none;
+    }
+
+    .collapse {
+      width: 24px;
+      height: 30px;
+      border: 0;
+      background: transparent;
+      color: #aeb3b8;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+
+    .collapse:hover { color: var(--accent); }
+
+    .collapse svg {
+      width: 13px;
+      height: 13px;
+      transition: transform .14s ease;
+    }
+
+    .tool-panel.collapsed .collapse svg { transform: rotate(-90deg); }
+
+    .tool-title {
+      color: var(--child-text);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .tool-menu {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      cursor: context-menu;
+    }
+
+    .tool-menu::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #030405;
+      transition: background .12s ease, filter .12s ease, transform .12s ease;
+    }
+
+    .tool-menu:hover::before,
+    .tool-menu.menu-open::before {
+      background: var(--accent);
+      filter: drop-shadow(0 0 5px rgba(240,166,41,.32));
+      transform: scale(1.08);
+    }
+
+    .tool-body {
+      padding: 8px;
+      background: var(--body);
+    }
+
+    .tool-panel.collapsed .tool-body { display: none; }
+
+    .tool-grid {
+      display: grid;
+      grid-template-columns: 96px 1fr;
+      align-items: center;
+      row-gap: 4px;
+      column-gap: 8px;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1;
+      text-align: right;
+      user-select: none;
+    }
+
+    .axis-stack {
+      display: grid;
+      gap: 1px;
+    }
+
+    .axis-stack .label {
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .number-field,
+    .select-field {
+      height: 28px;
+      border: 1px solid var(--field-border);
+      border-radius: 3px;
+      background: #454748;
+      color: var(--text);
+      box-shadow: none;
+      font: 500 13px var(--font-ui);
+    }
+
+    .number-field {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: ew-resize;
+      user-select: none;
+    }
+
+    .number-field:hover,
+    .number-field.dragging {
+      background: #4d5052;
+      border-color: #3a3d41;
+      color: #f0f1f2;
+    }
+
+    .number-field.dragging {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(240,166,41,.14);
+    }
+
+    .number-field .unit {
+      margin-left: 4px;
+      color: #d0d3d7;
+    }
+
+    .select-field {
+      width: 100%;
+      appearance: none;
+      padding: 0 28px 0 10px;
+      outline: none;
+      cursor: pointer;
+      background:
+        linear-gradient(45deg, transparent 50%, #c5c9ce 50%) right 13px center / 6px 6px no-repeat,
+        linear-gradient(135deg, #c5c9ce 50%, transparent 50%) right 7px center / 6px 6px no-repeat,
+        #202224;
+      box-shadow: none;
+    }
+
+    .select-field:focus {
+      border-color: var(--accent);
+    }
+
+    .check-row {
+      height: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      font-size: 13px;
+      user-select: none;
+    }
+
+    .check-row input {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      accent-color: var(--blue);
+      cursor: pointer;
+    }
+
+    .stack {
+      display: grid;
+      gap: 1px;
+    }
+
+    .stack .number-field {
+      border-radius: 0;
+    }
+
+    .stack .number-field:first-child {
+      border-radius: 3px 3px 0 0;
+    }
+
+    .stack .number-field:last-child {
+      border-radius: 0 0 3px 3px;
+    }
+
+    .spacer {
+      height: 4px;
+      grid-column: 1 / -1;
+    }
+
+    .panel-context {
+      position: fixed;
+      width: 176px;
+      background: #202225;
+      border: 1px solid #3a3d42;
+      border-radius: 3px;
+      box-shadow: 0 12px 26px rgba(0,0,0,.45);
+      padding: 4px 0;
+      display: none;
+      z-index: 10;
+    }
+
+    .panel-context.show { display: block; }
+
+    .panel-context button {
+      width: 100%;
+      height: 24px;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+      padding: 0 10px;
+      font: 500 12px var(--font-ui);
+      cursor: pointer;
+    }
+
+    .panel-context button:hover { background: #383b3e; }
+  </style>
+</head>
+<body>
+  <section class="tool-panel" aria-label="Add Cube tool prototype">
+    <div class="tool-header">
+      <button class="collapse" id="collapse" aria-label="Collapse tool">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 11.5 3.5 4.5h9L8 11.5Z"/></svg>
+      </button>
+      <div class="tool-title">Add Cube</div>
+      <div class="tool-menu" id="toolMenu" title="Tool options"></div>
+    </div>
+
+    <div class="tool-body">
+      <div class="tool-grid">
+        <div class="label">Size</div>
+        <div class="number-field" data-control="size" data-min="0.01" data-max="100" data-step="0.01" data-decimals="2" data-unit="m" data-value="2">
+          <span class="number">2.00</span><span class="unit">m</span>
+        </div>
+
+        <div></div>
+        <label class="check-row">
+          <input type="checkbox" checked>
+          <span>Generate UVs</span>
+        </label>
+
+        <div class="label">Align</div>
+        <select class="select-field">
+          <option>World</option>
+          <option>View</option>
+          <option>Cursor</option>
+        </select>
+
+        <div class="axis-stack">
+          <div class="label">Location X</div>
+          <div class="label">Y</div>
+          <div class="label">Z</div>
+        </div>
+        <div class="stack">
+          <div class="number-field" data-control="loc-x" data-min="-100" data-max="100" data-step="0.01" data-decimals="2" data-unit="m" data-value="4.54">
+            <span class="number">4.54</span><span class="unit">m</span>
+          </div>
+          <div class="number-field" data-control="loc-y" data-min="-100" data-max="100" data-step="0.01" data-decimals="3" data-unit="m" data-value="0.304">
+            <span class="number">0.304</span><span class="unit">m</span>
+          </div>
+          <div class="number-field" data-control="loc-z" data-min="-100" data-max="100" data-step="0.01" data-decimals="2" data-unit="m" data-value="-4.58">
+            <span class="number">-4.58</span><span class="unit">m</span>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="axis-stack">
+          <div class="label">Rotation X</div>
+          <div class="label">Y</div>
+          <div class="label">Z</div>
+        </div>
+        <div class="stack">
+          <div class="number-field" data-control="rot-x" data-min="-360" data-max="360" data-step="1" data-decimals="0" data-unit="deg" data-value="0">
+            <span class="number">0</span><span class="unit">deg</span>
+          </div>
+          <div class="number-field" data-control="rot-y" data-min="-360" data-max="360" data-step="1" data-decimals="0" data-unit="deg" data-value="0">
+            <span class="number">0</span><span class="unit">deg</span>
+          </div>
+          <div class="number-field" data-control="rot-z" data-min="-360" data-max="360" data-step="1" data-decimals="0" data-unit="deg" data-value="0">
+            <span class="number">0</span><span class="unit">deg</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="panel-context" id="panelContext">
+    <button>Reset Tool Values</button>
+    <button>Pin Tool</button>
+    <button>Duplicate Tool Tab</button>
+    <button>Close Tool</button>
+  </div>
+
+  <script>
+    const panel = document.querySelector(".tool-panel");
+    const context = document.getElementById("panelContext");
+    const toolMenu = document.getElementById("toolMenu");
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function displayUnit(unit) {
+      return unit === "deg" ? "deg" : unit;
+    }
+
+    function formatValue(field, value) {
+      const decimals = Number(field.dataset.decimals);
+      return Number(value).toFixed(decimals);
+    }
+
+    function setFieldValue(field, value) {
+      const min = Number(field.dataset.min);
+      const max = Number(field.dataset.max);
+      const next = clamp(Number(value), min, max);
+      field.dataset.value = String(next);
+      field.querySelector(".number").textContent = formatValue(field, next);
+      field.querySelector(".unit").textContent = displayUnit(field.dataset.unit);
+    }
+
+    document.querySelectorAll(".number-field").forEach(field => {
+      setFieldValue(field, Number(field.dataset.value));
+
+      field.addEventListener("pointerdown", event => {
+        event.preventDefault();
+        field.setPointerCapture(event.pointerId);
+        const stack = field.closest(".stack");
+        const targets = event.shiftKey && stack
+          ? Array.from(stack.querySelectorAll(".number-field"))
+          : [field];
+        targets.forEach(target => target.classList.add("dragging"));
+
+        const startX = event.clientX;
+        const starts = targets.map(target => ({
+          field: target,
+          value: Number(target.dataset.value),
+          step: Number(target.dataset.step),
+          sensitivity: target.dataset.unit === "deg" ? 0.4 : Number(target.dataset.step)
+        }));
+
+        function onMove(moveEvent) {
+          const delta = moveEvent.clientX - startX;
+          starts.forEach(start => {
+            const raw = start.value + delta * start.sensitivity;
+            const snapped = Math.round(raw / start.step) * start.step;
+            setFieldValue(start.field, snapped);
+          });
+        }
+
+        function onUp(upEvent) {
+          field.releasePointerCapture(upEvent.pointerId);
+          targets.forEach(target => target.classList.remove("dragging"));
+          field.removeEventListener("pointermove", onMove);
+          field.removeEventListener("pointerup", onUp);
+          field.removeEventListener("pointercancel", onUp);
+        }
+
+        field.addEventListener("pointermove", onMove);
+        field.addEventListener("pointerup", onUp);
+        field.addEventListener("pointercancel", onUp);
+      });
+    });
+
+    document.getElementById("collapse").addEventListener("click", () => {
+      panel.classList.toggle("collapsed");
+    });
+
+    toolMenu.addEventListener("contextmenu", event => {
+      event.preventDefault();
+      context.style.left = `${event.clientX}px`;
+      context.style.top = `${event.clientY}px`;
+      context.classList.add("show");
+      toolMenu.classList.add("menu-open");
+    });
+
+    context.addEventListener("click", () => {
+      context.classList.remove("show");
+      toolMenu.classList.remove("menu-open");
+    });
+
+    document.addEventListener("click", event => {
+      if (!event.target.closest(".panel-context") && !event.target.closest(".tool-menu")) {
+        context.classList.remove("show");
+        toolMenu.classList.remove("menu-open");
+      }
+    });
+  </script>
+</body>
+</html>

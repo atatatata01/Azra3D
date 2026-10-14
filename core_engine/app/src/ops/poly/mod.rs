@@ -1,0 +1,30 @@
+//! Polygonal mesh ops — one file per operation (node-ready façades over poly/*).
+
+pub mod invert_selection;
+pub mod grow_selection;
+pub mod shrink_selection;
+pub mod select_linked;
+pub mod hide_selected;
+pub mod hide_unselected;
+pub mod unhide_all;
+pub mod select_all_toggle;
+pub mod mesh_create;
+pub mod extrude;
+pub mod inset;
+pub mod solidify;
+pub mod fill;
+pub mod merge_vertices;
+pub mod delete_faces;
+pub mod delete_vertices;
+pub mod delete_edges;
+pub mod dissolve;
+pub mod loop_cut;
+pub mod bridge;
+pub mod join;
+pub mod bevel_activate;
+pub mod subdivide;
+pub mod dice;
+pub mod recalculate_normals;
+pub mod flip_normals;
+pub mod mesh_cleanup;
+pub mod cleanup_passes;

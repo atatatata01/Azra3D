@@ -1,0 +1,29 @@
+[package]
+license = "AGPL-3.0-or-later"
+authors = ["Dimitri Neron"]
+name = "core_math"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+# Enables the OCCT-oracle comparison harness in nurbs_fillet/oracle.rs outside
+# of `cfg(test)` builds. No dependencies of its own — purely a cfg gate.
+occt_oracle = []
+
+[dependencies]
+bytemuck = { workspace = true }
+glam = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true, features = ["derive", "rc"] }
+# Production boolean kernel (mesh_boolean default). default-features=false skips TBB —
+# oneTBB FetchContent hits Windows path-length limits under deep cargo OUT_DIR.
+# Enable `parallel` later with short OUT_DIR or MANIFOLD_CSG_LIB_DIR prebuild.
+manifold-csg = { version = "0.3", default-features = false }
+
+[dev-dependencies]
+serde_json = "1"
+# Round-trip tests use the SAME codec as project save/load (the real save format).
+bincode = "1"
+# Property-based fuzzing for the mesh-op test spine (random-mesh generator + validate(),
+# bevel apply→inverse→apply==identity). See mesh_ops/test_spine.rs.
+proptest = { workspace = true }

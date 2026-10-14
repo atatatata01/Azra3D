@@ -1,0 +1,49 @@
+[package]
+license = "AGPL-3.0-or-later"
+authors = ["Dimitri Neron"]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+cuda = ["dep:cuda_render"]
+# Hardware RT path-trace (OptiX triangle GAS). Requires CUDA toolkit + OptiX headers
+# (not bundled: set OPTIX_PATH to your NVIDIA OptiX SDK). RTX GPU at runtime.
+optix = ["cuda", "cuda_render/optix"]
+profiling = ["dep:tracing", "dep:tracing-subscriber", "dep:tracing-tracy", "dep:tracy-client"]
+
+[dependencies]
+core_math  = { path = "../core_math" }
+app_types  = { path = "../app_types" }
+app_ai     = { path = "../app_ai" }
+app_gpu    = { path = "../app_gpu" }
+graphics   = { path = "../graphics" }
+render     = { path = "../render" }
+io_bridge  = { path = "../io_bridge" }
+cuda_render = { path = "../cuda_render", optional = true, features = ["cuda"] }
+eframe = { workspace = true }
+egui = { workspace = true }
+egui-phosphor = "0.7"
+glam = { workspace = true }
+rfd = "0.15"
+bytemuck = { workspace = true }
+ureq = "2"
+serde = { workspace = true }
+serde_json = "1"
+dirs = "5"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "exr", "tiff", "tga", "bmp", "webp"] }
+bincode = "1"
+indexmap = { version = "2", features = ["serde"] }
+rayon = { workspace = true }
+pollster = "0.4"
+# Same version `graphics` pins (graphics/Cargo.toml). Used by gpu_material_bake.rs to
+# PARSE + VALIDATE assembled WGSL before create_shader_module (which panics on a validation
+# error with no Option to catch — the "voxel_mesh lesson" shader_build.rs's own tests document).
+naga = { version = "22.1", features = ["wgsl-in"] }
+crossbeam-channel = "0.5"
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", optional = true }
+tracing-tracy = { version = "0.11", optional = true }
+tracy-client = { version = "0.17", optional = true }
+ruzstd = "0.8.3"

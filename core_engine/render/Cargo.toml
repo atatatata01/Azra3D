@@ -1,0 +1,25 @@
+[package]
+license = "AGPL-3.0-or-later"
+authors = ["Dimitri Neron"]
+name = "render"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+core_math = { path = "../core_math" }
+# Phase D3 cluster DAG: meshlet building + border-locked simplification.
+# Vendors meshoptimizer C, built via the `cc` crate (NO cmake — this machine has none).
+meshopt = "0.4"
+glam = { workspace = true }
+wgpu = { workspace = true }
+bytemuck = { workspace = true }
+rayon = { workspace = true }
+
+[dev-dependencies]
+# Static WGSL validation for line_overlay.wgsl: create_shader_module only parses at
+# RUNTIME, so without this a shader typo is a GPU-time panic instead of a test failure.
+# Same version/feature set the graphics crate uses for its Naga parse tests.
+naga = { workspace = true }
+# Headless device for the line_overlay depth-occlusion GPU test (same version the
+# graphics crate uses for its GPU parity tests).
+pollster = "0.4"

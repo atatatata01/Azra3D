@@ -1,0 +1,23 @@
+[package]
+license = "AGPL-3.0-or-later"
+authors = ["Dimitri Neron"]
+name = "graphics"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+core_math = { path = "../core_math" }
+glam = { workspace = true }
+bytemuck = { workspace = true }
+wgpu = { workspace = true }
+rayon = { workspace = true }
+half = "2"
+naga = { workspace = true }
+
+[dev-dependencies]
+naga = { workspace = true }
+pollster = "0.4"
+# RT-shadow GPU readback test (rt_shadow_gpu_test.rs): builds the occluder scene via the
+# REAL render::pt_accel + cross-checks the WGSL any-hit against its CPU oracle
+# (trace_scene_cpu). render depends only on core_math → no dependency cycle.
+render = { path = "../render" }

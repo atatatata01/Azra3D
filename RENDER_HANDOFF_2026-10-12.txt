@@ -1,0 +1,302 @@
+UPDATE 2026-10-13 (Claude session) — READ THIS FIRST; sections below are the 10-12 state
+=========================================================================================
+BUILD: app builds on egui 0.32.3 / wgpu 25.0.2 / naga 25.0.1 (171 compile errors fixed + test
+target migrated). Green: graphics 95 (+3 denoise), render 111, app_gpu 13, native RT GPU AS test,
+app PT focused 23 (quality/readiness/denoise/specialization), app tests_gpu_curvature 8.
+
+INTEGRATION DONE (all 7 "missing parent integration" items):
+- GpuCtx/PipelineRegistry native fields + initializers; warmup builds native WGSL by adapting the
+  canonical static variants (build_native_rt_wgsl), fail-closed to software on rejection.
+- pt_scene.rs: upload_pod extra usage (BLAS_INPUT on verts), geometry epoch per FULL assemble,
+  pose-signature transform epoch, NativeInstance::from, clear on scene replacement.
+- viewport_render.rs: ONE PtFrameEncoder for AS build + PT + post, lease before the timing
+  closure, native dispatch only when ready, backend latch outside interaction + accum reset,
+  single submit + commit. AZRA_PT_SOFTWARE_TRAVERSAL=1 pins software (A/B).
+- Native budget: >1M-tri single mesh admitted as IdleOnly (pt_native::build_budget).
+
+FOUND + FIXED (see COMPLETE_BUG_TRACKER.md 2026-10-13 sections):
+- DF-full deferred shader NEVER finished a cold NVIDIA compile (>5 min, up to 90 GB RAM) and the
+  heavy-compile flag blocked the PT warmup forever = the "cold freeze". Pre-existing (HEAD/wgpu22
+  too) but the SDK change invalidates every cache. Root cause: driver inlines every scene_sdf call
+  (~307K statements). Fix: single-call-site loops (calc_curvature, sdf_central_gradient) + one
+  hoisted material eval. Now 35-44 s cold. GPU equivalence test: sdf_probe_loop_gpu_test.
+- wgpu25 material texture views invalid (STORAGE inherited by sRGB view) -> whole raster broken.
+- egui 0.32 menus closed on any click -> ui_menus.rs app-wide menu contract (80 sites).
+
+VIEWPORT EVIDENCE (isolated probe, full-res 3215x1710, RTX 4090): RTX active, zero GPU errors,
+RTX vs software captures identical (|d| 1e-5..8e-5, ~100x below noise), no horizontal banding
+(row/col ratio 0.50-0.90). PT pass ~1.5-2.6 ms GPU on the one-box scene (NO speed claim).
+Cold first launch: ~4 min to PT-ready (DF-full ~40 s, PT interactive ~120 s, native ~120 s).
+
+TOOLS: graphics/examples/pt_compile_bench.rs (cold driver-compile bench, salted, watchdog script
+in the session scratchpad); visdiff harness now ignores human input while AZRA_VISDIFF is set and
+AZRA_SHOT_FULLRES=1 saves full-res uncropped captures.
+
+STILL OPEN: owner's glossy-rail stripe scene not re-tested; dense-geometry RTX speed benchmark;
+PT interactive + native cold compile (~4 min first launch); one unexplained access violation in
+1 of 6 DF-full bench compiles; egui visual feel-test (Frame strokes now inside); egui-phosphor
+0.7 still pulls egui 0.29. Nothing committed. Old release exe backed up at
+core_engine/target/app_release_backup_2026-10-12_1424.exe (SHA256 1B1ED0C8...).
+NOTE: Run_UIv2_Release.bat does `cargo run --release` -> it rebuilds from CURRENT source.
+
+AZRA RENDER HANDOFF — 2026-10-12
+================================
+
+REQUEST / AUTHORIZATION
+The owner wants persistent PT horizontal banding, non-converging noise, cold-mode
+freezes, and poor RTX4090 performance fixed in this SAME polished version.
+Explicit approvals: parallel agents; real RTX/OptiX exception to WGSL-only rule
+WITH MATERIAL PARITY; necessary GPU SDK upgrade without UI redesign or switching
+worktrees. AZRA was saved/closed. Latest request: stop and hand off to another AI
+because credits are almost exhausted. Do not start more agents automatically.
+
+CHECKOUT / SAFETY
+Root: F:\PROJECT\FourthLAyerAi
+Branch: master; HEAD 1249b5f. This is the correct polished release checkout.
+Launcher: F:\PROJECT\FourthLAyerAi\Run_UIv2_Release.bat
+Build dir: F:\PROJECT\FourthLAyerAi\core_engine
+Read AGENTS.md, ARCHITECTURE.md, FEATURE_RULES.md, GPU_INVALIDATION_MATRIX.md.
+Owner approvals override the WGSL-only limitation for this RTX task, not other
+rules. No UI redesign. Keep triangles-only SDF display and the existing shading.
+Use apply_patch, preserve transactions/dirty flags/FrameScheduler/episode latch.
+No serialized layout changes, no raw HAL bypass, no fake flat-color RTX path.
+No new commits/branches/resets were made this turn. Current tree has 208 dirty
+entries, including substantial PRE-EXISTING shader, UI, poly/sculpt work.
+Do NOT discard unrelated changes or blindly commit the whole working tree.
+Earlier shader merge backup:
+C:\Users\Proprio\AppData\Local\Temp\azra-shader-merge-37649abb2fd54efb9c0c8a90d2102716
+Retained already-applied stash fe77582690abafb13285e09d24f68d4bc5ba42b4:
+DO NOT reapply or drop it.
+
+HONEST CURRENT STATE — NOT READY TO SHIP
+--------------------------------------
+WGSL fixes were implemented and tested BEFORE the SDK upgrade.
+The SDK upgrade and native RTX routing are INCOMPLETE.
+Current app SOURCE DOES NOT BUILD: latest log reports 169 compiler errors.
+No new final release executable was built for these PT/RTX changes.
+No end-to-end confirmation that the user's viewport banding is gone.
+No benchmark showing Octane-equivalent performance.
+Existing release app.exe is preserved, still the earlier working version.
+Observed release file: 34,116,096 bytes; LastWriteTime 2026-10-12 14:24:42.
+Verified SHA256: 1B1ED0C8DD65E2D22F304060FBCB73698A05412FDD8C71B828CCEB37AD9A6D6B
+At handoff no cargo/rustc/app/azra-probe processes were detected. Helpers were
+instructed to stop. Recheck before running tests or replacing the executable.
+
+WHAT WAS FIXED IN WGSL / HOST CODE
+---------------------------------
+1. Sampling: graphics/src/pathtrace_tri_entry.wgsl pt_r2 now uses the existing
+integer PCG hash, 24-bit float conversion, avoiding large-f32 fract precision
+collapse at high frame/pixel IDs that produced correlated stripe patterns.
+2. Accumulation: new graphics/src/pt_progressive.wgsl writes RAW RGBA32Float
+history, independent of FP16 display/denoising. No old 2048 history cap.
+Actual sample counts weight variable-SPP batches. Per-pixel Welford moments
+measure per-sample variance, not change in successive frame means.
+Binding 60 = RGBA32Float storage output; 61 = RW vec4 moments array.
+Moments are [luminance_mean, M2, sample_count, padding]. Reset never reads old
+NaN/uninitialized history. Raw history -> next history copies, NOT display -> raw.
+3. Reprojection: graphics/src/pt_reproject.wgsl carries FP32 color + conservative
+moments; invalid/disoccluded samples clear moments. Separate color and ReSTIR
+uniform buffers prevent queue.write_buffer last-write overwrite within a submit.
+4. Denoising: variance-guided a-trous, geometry-plane depth/albedo/normal edge
+weights. Removed unconditional disable after 96 frames. Per-pass uniform values
+are uploaded once to a cached 128-byte buffer and encoded copies precede each
+pass. No per-pass submit/allocation. Full/half denoiser targets remain FP16 display.
+5. Estimator stability: idle full PT uses classic unidirectional NEE; no ReSTIR DI
+or GI cache bias in full mode. Interactive mode retains reuse. Full bounce target
+does NOT change with age or frame budget; budget can change SPP. Interactive can
+reduce bounce count. Added PT_INTERACTIVE override and STATIC source variants.
+6. Timing: app_gpu/src/gpu_timestamps.rs PASS_PATH_TRACE=18, RAII encoder interval,
+actual asynchronous GPU duration. No CPU encode-time feedback as GPU cost.
+Only written timestamp slots are resolved (unwritten NVIDIA queries lose device).
+7. Cold pipeline: one in-flight background PT warmup, capped result drain, scheduler
+admission. Actual raster draft while compiling; no fake accumulated samples.
+Pipeline/resolution latch through interaction + eight-frame cooldown.
+Removed incompatible raster/HDR soft history seeding in PT path.
+
+KEY FILES / OWNERSHIP OF CHANGES
+------------------------------
+graphics/src/pathtrace_tri_entry.wgsl, pt_progressive.wgsl, pt_reproject.wgsl,
+pt_denoise.wgsl, shader_build.rs, bgl.rs, pt_progressive_gpu_test.rs;
+graphics/tests/pt_denoise_gpu.rs;
+app/src/gpu_ctx.rs, gpu_init/bgl.rs, gpu_init/pipelines_bg.rs,
+gpu_init/pipelines_lazy.rs, gpu_init/mod.rs, app_poll.rs, app_update.rs,
+viewport_render.rs, viewport_render_mode.rs, visdiff.rs;
+app_gpu/src/gpu_timestamps.rs;
+GPU_INVALIDATION_MATRIX.md, COMPLETE_BUG_TRACKER.md,
+docs/planning/render/PT_STRIPE_AND_PERF_PLAN.md.
+Some SDK API conversions touch other files; do not confuse them with UI redesign.
+
+PRE-UPGRADE VALIDATION (PASSED; RE-RUN ON NEW SDK)
+-----------------------------------------------
+Logs in C:\Users\Proprio\AppData\Local\Temp:
+azra-pt-build.log: app debug build passed on old SDK.
+azra-pt-final-graphics.log: graphics lib 94 passed, 1 ignored; denoise integration
+3 passed. Seven progressive actual-GPU tests passed; high-frame 4K sampler passed.
+azra-pt-progressive.log; azra-pt-sampler.log; azra-pt-timestamps.log (4 GPU tests);
+azra-pt-quality.log (16), azra-pt-readiness.log (4), azra-pt-policy.log (2).
+Tests cover >2048 samples, tiny FP32 updates, variable SPP, true variance, stale
+NaN reset, high frame/pixel sampling, denoising edges and ordered pass uniforms.
+Do NOT use broad app test filter 'pt_' — it also matches sculpt fuzz tests and
+runs huge unrelated work. Use exact module/test names.
+Other pre-existing project/core_math fixture failures are outside this task.
+
+SDK UPGRADE — IN PROGRESS
+-------------------------
+Workspace core_engine/Cargo.toml and Cargo.lock now pin:
+eframe = =0.32.3, egui = =0.32.3, wgpu = =25.0.2, naga = =25.0.1.
+graphics has production Naga for mode source specialization; dev Naga workspace.
+app_gpu adds render dependency. render dev Naga workspace. glam stays 0.29.
+Reason: wgpu22 public AS binding was incomplete; raw HAL would bypass resource
+tracking. Safe public ray queries need newer SDK; Naga25 fixes ray-miss codegen.
+Sources: https://github.com/gfx-rs/wgpu/issues/6761 and
+https://github.com/gfx-rs/wgpu/pull/6752
+
+LATEST BUILD BLOCKERS
+Log: C:\Users\Proprio\AppData\Local\Temp\azra-sdk-build.log (169 errors).
+Also azra-sdk-owned-build.log / azra-sdk-owned-crates-build.log.
+Graphics/render/app_gpu library compatibility had progressed past initial errors.
+App mainly needs mechanical egui migrations: StrokeKind arguments, integer
+margins/radii/shadows, FontData Arcs, popup APIs, removed PanelResizeLine, etc.
+Main files: app/src/ui_theme.rs, ui_fields.rs, library_panel.rs,
+shader_nodes/editor.rs, material panels, ui2. Preserve existing visual dimensions,
+colors, behavior. Phosphor font bytes: Variant::Regular.font_bytes().
+Socrates applied GPU API conversions in 21 app files; UI compatibility patch
+was prepared but NOT applied. Owner permitted technical compatibility, not redesign.
+Parent fixed gpu_worker Instance borrowing + request_device single arg/Trace::Off;
+gpu_jobs entry_point Some and PollType::Wait with proper propagated failures.
+Parent ported gpu_init NativeOptions to WgpuSetupCreateNew, enabled RT feature
+mask only if adapter supports it, Trace::Off, viewport nonblocking PollType polls
+and Some(ref bg) double-reference compatibility fixes.
+
+STATIC PIPELINE SOURCE SPECIALIZATION
+graphics::build_pathtrace_tri_wgsl_with_mode(Some(false/true)) uses Naga to prune
+dead mode branches/functions before driver compilation. Full drops reuse roots.
+Both source variants passed Naga25 smoke validation. HOWEVER a graphics size
+diagnostic test still parses unspecialized override source, gets Err(Override):
+update that diagnostic's PT inputs to static variants. Latest upgrade graphics
+report: 93 passed, 1 ignored, 1 diagnostic failure (not final green).
+
+NATIVE RTX MODULE — REAL IMPLEMENTATION, NOT YET ROUTED
+-----------------------------------------------------
+core_engine/app_gpu/src/native_rt/{mod.rs,pipeline.rs,scene.rs,shader.rs,
+native_rt_traversal.wgsl,pack_indices.wgsl,tests.rs,test_query.wgsl,README.md}.
+Read README.md for API/ownership. Default module; NO CUDA feature dependency.
+Required feature mask:
+EXPERIMENTAL_RAY_TRACING_ACCELERATION_STRUCTURE | EXPERIMENTAL_RAY_QUERY.
+Uses public typed wgpu25 BLAS/TLAS, GPU packing of PtTri indices, existing shared
+vertex buffer; no raw HAL state-tracker bypass, no scene readback.
+Geometry is cached by buffer identity/count + geometry epoch; transform changes
+rebuild TLAS only; materials must NOT invalidate AS. Deduplicates shared BLAS.
+MAX_BLAS_BUILDS_PER_FRAME=2. Default budget 1M triangles, 4096 TLAS instances.
+Oversized work needs explicit IdleOnly admission with sufficient budget, NOT
+permanent deferral. Respect scheduler and bounded frame work.
+Gpu buffers/AS are retained in frame leases; only promote staged AS after actual
+queue submission. Stale/abandoned frame promotion is rejected by owner/revision.
+
+Public APIs:
+build_native_rt_wgsl(&specialized_source) -> Result<String,String>
+NativeRtPipelines::compile(device,g0_layout,full_source,interactive_source,cache)
+NativeRtRenderer::set_scene(vertices,triangles,vertex_count,triangle_count,
+  &[NativeInstance], NativeRtEpochs {geometry,transforms})
+NativeRtRenderer::prepare(device,encoder,pipelines,budget) -> NativeRtFrame
+NativeRtFrame: encoder(), encoder_mut(), dispatch_lease(), encode_pt(), submit()
+NativeRtDispatch::encode(encoder,pipelines,canonical_g0,[width,height],interactive)
+NativeRtRenderer::commit(submitted) -> bool; clear().
+Canonical material group0 is unchanged. Group1 binding0 is acceleration structure.
+Adapter replaces ONLY pt_trace_scene/pt_occluded implementations. All materials,
+live GPU maps, normal/bump/curvature, HDR lighting, sampling/integrator remain
+canonical WGSL. Triangle ID = instance.tri_off + primitive_index; instance custom
+ID maps canonical PtInstanceGpu index. Indices are already GLOBAL in PtTri arrays.
+Force opaque/two-sided traversal matches existing software traversal; material
+integrator handles transmission. Don't claim unsupported alpha candidates.
+wgpu25 currently rebuilds hardware TLAS instead of true native refit.
+
+Native tests: six unit/prototype tests passed earlier revision; GPU test deferred.
+Latest adapter relocation/accessor/interval endpoints/specialized test NOT yet
+validated. Actual optional OptiX query prerequisites had four GPU tests passed
+and six unit/prototype tests, but these are NOT production material parity.
+Logs: %TEMP%\azra-optix-query-validation. Old flat CUDA renderer stays disabled.
+
+EXACT MISSING PARENT INTEGRATION
+-------------------------------
+1. gpu_ctx.rs has four new fields on GpuCtx:
+native_rt Option<NativeRtRenderer>, native_rt_geometry_epoch u64,
+native_rt_active bool, native_rt_status NativeRtStatus.
+BUT app_update.rs initializer has NOT been updated (all four missing).
+2. PipelineRegistry.native_rt_pipelines Option<Arc<NativeRtPipelines>> is MISSING,
+as is its initializer None. app_poll.rs warmup payload has 'native' and publishes
+to that missing field.
+3. gpu_init/pipelines_lazy.rs native warmup currently calls NONEXISTENT
+graphics::build_pathtrace_tri_native_wgsl_with_mode(false/true).
+Replace with app_gpu::native_rt::build_native_rt_wgsl applied to each canonical
+graphics::build_pathtrace_tri_wgsl_with_mode(Some(false/true)) source, then compile.
+4. New app/src/pt_native.rs registers in main.rs. It contains PtFrameEncoder enum
+Software/Native, prepare/status/dispatch_lease/submit and Deref wrappers.
+It is NOT called from viewport yet. It references missing native_rt_pipelines.
+5. pt_scene.rs is UNCHANGED by the attempted last parent patch (apply_patch FAILED
+atomically). No extra_usage parameter, vertex BLAS_INPUT flag, native sync helper,
+geometry epoch updates, reset native cache, or set_scene wiring has landed.
+The follow-on sync_scene helper patch did NOT execute either.
+   Extend existing upload_pod with extra BufferUsages argument; all uploads empty
+except vertices with BLAS_INPUT when device feature enabled. Check usage on grow.
+   Increment geometry epoch on FULL assemble, not material-only refit. Use
+NativeInstance::from(&PtInstanceGpu); pose signature over model bits/tri_off/vert_off,
+ignoring materials. Reset native cache on project/scene replacement.
+   Existing pt_scene_generation increments only on buffer realloc, insufficient
+for edited geometry in reused buffers. Must use dedicated geometry epoch.
+6. viewport_render.rs needs same common encoder wrapper for AS build + all PT,
+post-process commands, NativeRtDispatch lease before borrowing encoder in timing
+closure, native queries instead of software compute only when actually ready,
+same full/half canonical bind groups, and submit+commit after SAME frame submit.
+Native pipeline routing must respect interaction+cooldown latch and accumulation
+reset on estimator/backend change. Never a second uncontrolled queue submission.
+7. Production material/lighting/normal/bump/transmission parity test still missing.
+
+VIEWPORT PROBE / ACTUAL REMAINING PERFORMANCE PROBLEM
+----------------------------------------------------
+Old monolithic software PT cold compilation stayed >6 MINUTES without readiness.
+Main app remained responding with raster draft; worker CPU/compiler consumed GBs.
+Thus switching could LOOK frozen while compiling. Static variants + newer SDK
+must be measured; no claim this cold-compile bottleneck is solved yet.
+Diagnostic exe/process was stopped, production executable never replaced.
+Isolation dir: %TEMP%\azra-pt-viewport-probe (profile/AppData/logs/shots).
+Existing A/B captures were raster/Hybrid ONLY, not validated path-traced output.
+visdiff.rs reuses existing harness, with AZRA_PT_REGRESSION and AZRA_PT_GRAY_PROBE:
+switch PT at frame470, wait actual ready +128 frames, later wait256 frames;
+rotate camera at710, final exit waits image readbacks. Sets probe project path
+so diagnostic autosave cannot overwrite user data. Always isolated USERPROFILE,
+HOME, APPDATA, LOCALAPPDATA and hidden launch. Existing images are512-square
+thumbnail captures; don't pretend they benchmark full viewport resolution.
+After integration rerun actual PT captures with denoise ON/OFF, camera static,
+high samples then movement, verify stripes disappear AND variance decreases.
+Measure real GPU timestamps on4090 at stated resolution/SPP/bounces.
+
+BUILD / NEXT ACTIONS
+--------------------
+In core_engine PowerShell:
+$env:MANIFOLD_CSG_LIB_DIR='F:/PROJECT/FourthLAyerAi/dev/manifold-prebuilt'
+$env:MANIFOLD_CSG_LIB_KIND='static'
+$env:CARGO_INCREMENTAL='0'
+cargo build -p app -j 8
+Fix SDK compile first; do not stack more unvalidated changes.
+cargo test -p graphics
+cargo test -p app_gpu native_rt::tests
+cargo test -p app_gpu native_rt::tests::gpu_native_global_indices_shared_instances_and_submission_lifecycle -- --ignored --exact
+Run focused progressive/denoise/timing/quality/readiness/latch tests, then native
+material parity and real viewport probe. CoordinateGPU access with app CLOSED.
+Only after green, cargo build -p app --release -j 8, verify correct root release
+exe and launcher. Don't overwrite with a partial/debug/unvalidated build.
+Keep resource invalidation/docs/bug tracker status accurate. No completion claim
+until actual viewport evidence and honest GPU timings exist.
+
+FINAL HELPER CHECKPOINT
+Ohm confirmed after the SDK upgrade: graphics 93 passed, 1 failed, 1 ignored;
+denoise GPU integration 3 passed. Remaining graphics failure is the Override
+size diagnostic above. Render tests remain unrun. No test/build/app processes
+running. All helpers are closed after reporting their checkpoint.
+
+HELPER IDS (STOPPED FOR HANDOFF; DON'T RESTART WITHOUT OWNER REQUEST)
+Aquinas gpt-6-astra: 01a1316e-00e4-7403-8ca3-03710de89b6e — native RT/dependencies.
+Boole gpt-6.1-sol: 01a1316e-01d8-75f2-b84b-b993d74290da — warmup/static variants/denoise.
+Ohm gpt-6.1-sol: 01a1316e-02f6-73f1-acd1-728231ceab25 — graphics/render SDK/tests.
+Socrates gpt-6.1-sol: 01a13192-2c96-7630-8dcc-93582fc9b267 — app API compatibility.

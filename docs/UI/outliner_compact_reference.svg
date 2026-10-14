@@ -1,0 +1,249 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="980" viewBox="0 0 760 980" fill="none">
+  <defs>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;display=swap");
+
+      .page { fill: #090a0b; }
+      .panel { fill: #141516; stroke: #030405; stroke-width: 2; }
+      .panel-outline { fill: none; stroke: #030405; stroke-width: 2; }
+      .top { fill: #0c0d0e; }
+      .field { fill: #0f1011; stroke: #2a2d30; stroke-width: 1; }
+      .head { fill: #191b1d; }
+      .body { fill: #1d1f20; }
+      .row { fill: #232526; }
+      .row-alt { fill: #222425; }
+      .row-active { fill: #2c2f30; }
+      .row-selected { fill: #292c2d; }
+      .grid { stroke: #18191b; stroke-width: 1; }
+      .tree { stroke: #141618; stroke-width: 1; stroke-dasharray: 1 2; }
+      .edge { fill: #111214; }
+      .text { fill: #e2e3e4; font: 500 14px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .root-text { fill: #f0f1f2; font: 700 15px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .body-text { fill: #e3e5e7; font: 650 14px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .child-text { fill: #c5c9ce; font: 500 13px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .dim-text { fill: #898e95; font: 500 12px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .sdf-text { fill: #39d98a; font: 650 14px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .sdf-dim-text { fill: #39d98a; font: 500 12px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .control-text { fill: #dce0e3; font: 650 14px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .small { fill: #c5c8cb; font: 600 12px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .muted { fill: #7b8086; font: 500 12px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .title { fill: #f0f1f2; font: 700 19px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .caption { fill: #8b8f95; font: 400 13px "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; }
+      .accent { fill: #f0a629; }
+      .accent-stroke { stroke: #f0a629; }
+      .blue { fill: #3e9bff; }
+      .yellow { fill: #ffbe38; }
+      .orange { fill: #ff7a18; }
+      .sdf { fill: #39d98a; }
+      .dim { fill: #7a7e84; }
+      .icon { stroke: currentColor; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+
+    <linearGradient id="addBevel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3c3e41"/>
+      <stop offset="1" stop-color="#36383b"/>
+    </linearGradient>
+
+    <clipPath id="panelClip">
+      <rect x="0" y="0" width="520" height="850" rx="5"/>
+    </clipPath>
+
+    <symbol id="eye" viewBox="0 0 18 18">
+      <path class="icon" d="M1.8 9S4.5 5.1 9 5.1 16.2 9 16.2 9 13.5 12.9 9 12.9 1.8 9 1.8 9Z"/>
+      <circle class="icon" cx="9" cy="9" r="2.2"/>
+    </symbol>
+    <symbol id="lock" viewBox="0 0 18 18">
+      <rect class="icon" x="4.2" y="8" width="9.6" height="6.7" rx="1.4"/>
+      <path class="icon" d="M6.3 8V5.8a2.7 2.7 0 0 1 5.4 0V8"/>
+    </symbol>
+    <symbol id="mesh" viewBox="0 0 18 18">
+      <path class="icon" d="M4 6.2 9 3l5 3.2v5.6L9 15l-5-3.2Z"/>
+      <path class="icon" d="M4 6.2 9 9.4l5-3.2M9 9.4V15"/>
+    </symbol>
+    <symbol id="primitive-box" viewBox="0 0 18 18">
+      <rect class="icon" x="4" y="4" width="10" height="10" rx="1.8"/>
+      <path class="icon" d="M4 7h10M7 4v10"/>
+    </symbol>
+    <symbol id="primitive-sphere" viewBox="0 0 18 18">
+      <circle class="icon" cx="9" cy="9" r="6"/>
+      <path class="icon" d="M3.5 9h11M9 3c1.5 1.7 2.2 3.7 2.2 6S10.5 13.3 9 15M9 3C7.5 4.7 6.8 6.7 6.8 9s.7 4.3 2.2 6"/>
+    </symbol>
+    <symbol id="primitive-cylinder" viewBox="0 0 18 18">
+      <ellipse class="icon" cx="9" cy="5" rx="5" ry="2.2"/>
+      <path class="icon" d="M4 5v8M14 5v8"/>
+      <ellipse class="icon" cx="9" cy="13" rx="5" ry="2.2"/>
+    </symbol>
+    <symbol id="primitive-cone" viewBox="0 0 18 18">
+      <path class="icon" d="M9 3 14 14H4Z"/>
+      <path class="icon" d="M5.3 11.2c2.4 1.1 4.9 1.1 7.4 0"/>
+    </symbol>
+    <symbol id="body" viewBox="0 0 18 18">
+      <rect class="icon" x="3" y="3" width="12" height="12" rx="2.2"/>
+      <circle cx="9" cy="9" r="2.7" fill="currentColor" opacity=".45"/>
+    </symbol>
+    <symbol id="scene" viewBox="0 0 18 18">
+      <rect class="icon" x="2.8" y="4.8" width="12.4" height="10.4" rx="1.8"/>
+      <path class="icon" d="M2.8 7.8h12.4M5.4 4.8l2.4 3M10 4.8l2.4 3M6.2 11.4h5.6"/>
+    </symbol>
+    <symbol id="camera" viewBox="0 0 18 18">
+      <rect class="icon" x="2.5" y="5.2" width="9.4" height="7.6" rx="1.4"/>
+      <path class="icon" d="M11.9 7.2 15.8 5.1v7.8l-3.9-2.1Z"/>
+      <circle cx="7.2" cy="9" r="1.7" fill="currentColor" opacity=".45"/>
+    </symbol>
+    <symbol id="light" viewBox="0 0 18 18">
+      <circle class="icon" cx="9" cy="9" r="3.1"/>
+      <path class="icon" d="M9 1.8v2.1M9 14.1v2.1M1.8 9h2.1M14.1 9h2.1M3.9 3.9l1.5 1.5M12.6 12.6l1.5 1.5M14.1 3.9l-1.5 1.5M5.4 12.6l-1.5 1.5"/>
+    </symbol>
+    <symbol id="directional-light" viewBox="0 0 18 18">
+      <circle class="icon" cx="9" cy="9" r="3.1"/>
+      <path class="icon" d="M9 1.8v2.1M9 14.1v2.1M1.8 9h2.1M14.1 9h2.1M3.9 3.9l1.5 1.5M12.6 12.6l1.5 1.5M14.1 3.9l-1.5 1.5M5.4 12.6l-1.5 1.5"/>
+    </symbol>
+    <symbol id="gear" viewBox="0 0 18 18">
+      <circle class="icon" cx="9" cy="9" r="2.6"/>
+      <path class="icon" d="M9 2.8v2M9 13.2v2M2.8 9h2M13.2 9h2M4.6 4.6 6 6M12 12l1.4 1.4M13.4 4.6 12 6M6 12l-1.4 1.4"/>
+    </symbol>
+  </defs>
+
+  <rect class="page" width="760" height="980"/>
+  <g transform="translate(34 34)">
+    <rect class="panel" x="0" y="0" width="520" height="850" rx="5"/>
+    <g clip-path="url(#panelClip)">
+
+    <!-- Modo-style tab strip with panel move dot. -->
+    <rect class="top" x="0" y="0" width="520" height="24"/>
+    <circle cx="15" cy="12" r="4.2" fill="#030405"/>
+    <rect x="30" y="0" width="62" height="24" fill="#242628"/>
+    <text class="small" x="48" y="16" fill="#f0a629">Items</text>
+    <text class="small" x="105" y="16" fill="#c7cacf">Mesh Ops</text>
+    <text class="small" x="185" y="16" fill="#c7cacf">Shading</text>
+    <text class="small" x="258" y="16" fill="#c7cacf">Groups</text>
+    <text class="small" x="330" y="16" fill="#c7cacf">Images</text>
+    <text class="small" x="404" y="16" fill="#c7cacf">+</text>
+
+    <!-- Add Item bar with compact search. -->
+    <rect x="0" y="24" width="520" height="28" fill="#1b1c1e"/>
+    <rect x="8" y="29" width="112" height="20" rx="2.5" fill="url(#addBevel)" stroke="#25272a"/>
+    <path d="M11 30h106" stroke="#45474a" stroke-width="1" stroke-linecap="round"/>
+    <path d="M11 48h106" stroke="#2f3134" stroke-width="1" stroke-linecap="round"/>
+    <text class="control-text" x="35" y="44">Add Item</text>
+    <rect x="120" y="29" width="24" height="20" rx="2.5" fill="url(#addBevel)" stroke="#25272a"/>
+    <path d="M123 30h18" stroke="#45474a" stroke-width="1" stroke-linecap="round"/>
+    <path d="M123 48h18" stroke="#2f3134" stroke-width="1" stroke-linecap="round"/>
+    <path d="M126 36h10l-5 6Z" fill="#aeb3b8"/>
+    <rect class="field" x="410" y="30" width="94" height="18" rx="2"/>
+    <text class="muted" x="424" y="43">Filter...</text>
+
+    <!-- compact column header -->
+    <rect class="head" x="0" y="52" width="520" height="24"/>
+    <line class="grid" x1="34" y1="52" x2="34" y2="850"/>
+    <use href="#eye" x="8" y="56" width="17" height="17" color="#050607"/>
+    <text class="small" x="54" y="68">Name</text>
+
+    <rect class="body" x="0" y="76" width="520" height="774"/>
+    <line class="grid" x1="34" y1="76" x2="34" y2="850"/>
+
+    <!-- resizable side edge, matching SidePanel::resizable(true) as a visual hint -->
+    <rect class="edge" x="504" y="76" width="16" height="774"/>
+    <rect x="507" y="152" width="10" height="196" rx="5" fill="#151719"/>
+    <rect x="509" y="202" width="6" height="68" rx="3" fill="#555a60"/>
+    <rect x="0" y="834" width="504" height="16" fill="#111214"/>
+    <rect x="112" y="837" width="196" height="10" rx="5" fill="#151719"/>
+    <rect x="162" y="839" width="68" height="6" rx="3" fill="#555a60"/>
+
+    <!-- unified scene tree -->
+    <g transform="translate(0 76)">
+      <rect class="row-active" x="34" y="0" width="470" height="25"/>
+      <rect class="accent" x="34" y="0" width="3" height="25"/>
+      <use href="#eye" x="8" y="4" width="17" height="17" color="#050607"/>
+      <path d="M52 8h8l-4 7Z" fill="#050607"/>
+      <use href="#scene" x="80" y="4" width="17" height="17" color="#ff7a18"/>
+      <text class="root-text" x="106" y="18">Untitled</text>
+
+      <path class="tree" d="M66 25v188M66 38h12M66 63h12M66 113h12M66 138h12M66 163h12M66 188h12"/>
+      <path class="tree" d="M84 50v50M84 63h12M84 200v25M84 213h12"/>
+      <path class="tree" d="M104 75v25M104 88h12"/>
+      <rect class="row" x="34" y="25" width="470" height="25"/>
+      <use href="#eye" x="8" y="29" width="17" height="17" color="#050607"/>
+      <path d="M74 33h8l-4 7Z" fill="#050607"/>
+      <use href="#mesh" x="92" y="29" width="17" height="17" color="#3e9bff"/>
+      <text class="body-text" x="118" y="43">Mesh</text>
+
+      <rect class="row-alt" x="34" y="50" width="470" height="25"/>
+      <use href="#eye" x="8" y="54" width="17" height="17" color="#050607"/>
+      <path d="M94 58h8l-4 7Z" fill="#050607"/>
+      <use href="#mesh" x="112" y="54" width="17" height="17" color="#3e9bff"/>
+      <text class="body-text" x="138" y="68">Mesh (2)</text>
+
+      <rect class="row" x="34" y="75" width="470" height="25"/>
+      <use href="#eye" x="8" y="79" width="17" height="17" color="#050607"/>
+      <use href="#mesh" x="132" y="79" width="17" height="17" color="#3e9bff"/>
+      <text class="dim-text" x="158" y="93">n</text>
+
+      <rect class="row-selected" x="34" y="100" width="470" height="25"/>
+      <use href="#eye" x="8" y="104" width="17" height="17" color="#050607"/>
+      <use href="#camera" x="92" y="104" width="17" height="17" color="#d7dbe0"/>
+      <circle cx="122" cy="112" r="7" fill="#5967d6" stroke="#181b24"/>
+      <text class="child-text" x="136" y="118">Camera</text>
+      <use href="#lock" x="444" y="104" width="17" height="17" color="#a87735"/>
+      <use href="#gear" x="470" y="104" width="17" height="17" color="#b6bbc0"/>
+
+      <rect class="row-alt" x="34" y="125" width="470" height="25"/>
+      <use href="#eye" x="8" y="129" width="17" height="17" color="#050607"/>
+      <use href="#directional-light" x="92" y="129" width="17" height="17" color="#ffbe38"/>
+      <text class="child-text" x="118" y="143">Directional Light</text>
+
+      <rect class="row" x="34" y="150" width="470" height="25"/>
+      <use href="#eye" x="8" y="154" width="17" height="17" color="#050607"/>
+      <use href="#mesh" x="92" y="154" width="17" height="17" color="#3e9bff"/>
+      <text class="child-text" x="118" y="168">Reference Mesh</text>
+
+      <rect class="row-alt" x="34" y="175" width="470" height="25"/>
+      <use href="#eye" x="8" y="179" width="17" height="17" color="#050607"/>
+      <path d="M74 183h8l-4 7Z" fill="#050607"/>
+      <use href="#body" x="92" y="179" width="17" height="17" color="#39d98a"/>
+      <text class="sdf-text" x="118" y="193">SDF Body</text>
+
+      <rect class="row" x="34" y="200" width="470" height="25"/>
+      <use href="#eye" x="8" y="204" width="17" height="17" color="#050607"/>
+      <use href="#mesh" x="112" y="204" width="17" height="17" color="#39d98a"/>
+      <text class="sdf-dim-text" x="138" y="218">Hull_Base</text>
+    </g>
+
+    <!-- Add Item menu state: primitive is grouped with a submenu. -->
+    <g transform="translate(8 52)">
+      <rect x="0" y="0" width="176" height="140" rx="3" fill="#1d1f21" stroke="#34373a"/>
+      <path d="M2 1h172" stroke="#2a2d30" stroke-linecap="round"/>
+      <path d="M2 139h172" stroke="#2a2d30" stroke-linecap="round"/>
+      <rect x="0" y="0" width="176" height="28" rx="3" fill="#222527"/>
+      <use href="#primitive-box" x="12" y="6" width="15" height="15" color="#39d98a"/>
+      <text class="small" x="38" y="19" fill="#39d98a">Primitive</text>
+      <text class="small" x="154" y="19" fill="#aeb3b8">›</text>
+      <text class="small" x="14" y="47" fill="#f0f1f2">Mesh</text>
+      <text class="small" x="14" y="75" fill="#f0f1f2">Camera</text>
+      <text class="small" x="14" y="103" fill="#f0f1f2">Directional Light</text>
+      <text class="small" x="14" y="131" fill="#f0f1f2">SDF Body</text>
+      <use href="#mesh" x="145" y="33" width="15" height="15" color="#3e9bff"/>
+      <use href="#camera" x="145" y="61" width="15" height="15" color="#d7dbe0"/>
+      <use href="#light" x="145" y="89" width="15" height="15" color="#ffbe38"/>
+      <use href="#body" x="145" y="117" width="15" height="15" color="#39d98a"/>
+
+      <g transform="translate(176 0)">
+        <rect x="0" y="0" width="164" height="112" rx="3" fill="#1d1f21" stroke="#34373a"/>
+        <path d="M2 1h160" stroke="#2a2d30" stroke-linecap="round"/>
+        <path d="M2 111h160" stroke="#2a2d30" stroke-linecap="round"/>
+        <rect x="0" y="0" width="164" height="28" rx="3" fill="#222527"/>
+        <use href="#primitive-box" x="12" y="6" width="15" height="15" color="#39d98a"/>
+        <text class="small" x="38" y="19" fill="#f0f1f2">Box</text>
+        <use href="#primitive-sphere" x="12" y="34" width="15" height="15" color="#39d98a"/>
+        <text class="small" x="38" y="47" fill="#f0f1f2">Sphere</text>
+        <use href="#primitive-cylinder" x="12" y="62" width="15" height="15" color="#39d98a"/>
+        <text class="small" x="38" y="75" fill="#f0f1f2">Cylinder</text>
+        <use href="#primitive-cone" x="12" y="90" width="15" height="15" color="#39d98a"/>
+        <text class="small" x="38" y="103" fill="#f0f1f2">Cone</text>
+      </g>
+    </g>
+    </g>
+    <rect class="panel-outline" x="0" y="0" width="520" height="850" rx="5"/>
+  </g>
+
+</svg>

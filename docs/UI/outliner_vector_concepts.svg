@@ -1,0 +1,329 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="920" viewBox="0 0 1440 920">
+  <defs>
+    <style>
+      .bg { fill: #111214; }
+      .title { fill: #f2eee7; font: 700 28px "Segoe UI", Arial, sans-serif; letter-spacing: 0; }
+      .subtitle { fill: #989ca5; font: 400 13px "Segoe UI", Arial, sans-serif; }
+      .label { font: 700 12px "Segoe UI", Arial, sans-serif; letter-spacing: .08em; }
+      .ui { font: 500 12px "Segoe UI", Arial, sans-serif; }
+      .ui-small { font: 500 10px "Segoe UI", Arial, sans-serif; }
+      .mono { font: 600 9px "Consolas", monospace; }
+      .line { stroke-linecap: round; stroke-linejoin: round; }
+      .soft-shadow { filter: drop-shadow(0 18px 28px rgba(0,0,0,.38)); }
+    </style>
+
+    <linearGradient id="glassPanel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#272b31"/>
+      <stop offset="1" stop-color="#191b1f"/>
+    </linearGradient>
+    <linearGradient id="carbonPanel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#202225"/>
+      <stop offset=".55" stop-color="#18191c"/>
+      <stop offset="1" stop-color="#111214"/>
+    </linearGradient>
+    <linearGradient id="lightPanel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6f2e8"/>
+      <stop offset="1" stop-color="#e7e0d2"/>
+    </linearGradient>
+
+    <symbol id="eye" viewBox="0 0 18 18">
+      <path d="M2.1 9s2.4-4.1 6.9-4.1S15.9 9 15.9 9 13.5 13.1 9 13.1 2.1 9 2.1 9Z" fill="none" stroke="currentColor" stroke-width="1.35"/>
+      <circle cx="9" cy="9" r="2.1" fill="currentColor"/>
+    </symbol>
+    <symbol id="lock" viewBox="0 0 18 18">
+      <rect x="4" y="8" width="10" height="7" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.35"/>
+      <path d="M6.2 8V5.8a2.8 2.8 0 0 1 5.6 0V8" fill="none" stroke="currentColor" stroke-width="1.35"/>
+    </symbol>
+    <symbol id="cube" viewBox="0 0 18 18">
+      <path d="M9 2.2 15 5.7v6.6L9 15.8l-6-3.5V5.7Z" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.25"/>
+      <path d="M3 5.7 9 9.1l6-3.4M9 9.1v6.7" fill="none" stroke="currentColor" stroke-width=".85" opacity=".7"/>
+    </symbol>
+    <symbol id="sphere" viewBox="0 0 18 18">
+      <circle cx="9" cy="9" r="6.5" fill="currentColor" fill-opacity=".18" stroke="currentColor" stroke-width="1.25"/>
+      <path d="M3 9h12M9 2.5c1.8 1.8 2.7 3.9 2.7 6.5s-.9 4.7-2.7 6.5M9 2.5C7.2 4.3 6.3 6.4 6.3 9s.9 4.7 2.7 6.5" fill="none" stroke="currentColor" stroke-width=".7" opacity=".55"/>
+    </symbol>
+    <symbol id="cylinder" viewBox="0 0 18 18">
+      <ellipse cx="9" cy="5" rx="5.4" ry="2.4" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.2"/>
+      <path d="M3.6 5v8M14.4 5v8" stroke="currentColor" stroke-width="1.2"/>
+      <ellipse cx="9" cy="13" rx="5.4" ry="2.4" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.2"/>
+    </symbol>
+    <symbol id="body" viewBox="0 0 18 18">
+      <rect x="2.5" y="2.5" width="13" height="13" rx="3" fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="1.35"/>
+      <circle cx="9" cy="9" r="3.2" fill="currentColor" fill-opacity=".5"/>
+    </symbol>
+    <symbol id="camera" viewBox="0 0 18 18">
+      <rect x="2" y="5.2" width="10" height="7.6" rx="1.5" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.2"/>
+      <path d="M12 7 16 4.9v8.2L12 11Z" fill="currentColor" fill-opacity=".4" stroke="currentColor" stroke-width="1.2"/>
+      <circle cx="7" cy="9" r="2" fill="none" stroke="currentColor" stroke-width=".9"/>
+    </symbol>
+    <symbol id="light" viewBox="0 0 18 18">
+      <circle cx="9" cy="8" r="3.3" fill="currentColor" fill-opacity=".26" stroke="currentColor" stroke-width="1.2"/>
+      <path d="M9 1.8v2M9 12.2v2M3.7 3.3l1.5 1.5M12.8 4.8l1.5-1.5M2.5 8h2M13.5 8h2" stroke="currentColor" stroke-width="1.2"/>
+    </symbol>
+  </defs>
+
+  <rect class="bg" width="1440" height="920"/>
+  <text class="title" x="56" y="54">AZRA Outliner - Vector Style Concepts</text>
+  <text class="subtitle" x="56" y="79">Pure SVG design study. Focus: hierarchy, visibility, locks, boolean structure, and fast scene scanning.</text>
+
+  <!-- Concept A -->
+  <g transform="translate(56 124)" class="soft-shadow">
+    <text class="label" x="0" y="-24" fill="#f0a629">A / TECH GRAPHITE</text>
+    <rect x="0" y="0" width="392" height="688" rx="8" fill="url(#glassPanel)" stroke="#3f444d"/>
+    <rect x="0" y="0" width="392" height="42" rx="8" fill="#20242a"/>
+    <path d="M0 34h392" stroke="#3f444d"/>
+    <text class="ui" x="18" y="26" fill="#f6f0e6">Scene</text>
+    <text class="ui" x="82" y="26" fill="#858b95">Materials</text>
+    <text class="ui" x="168" y="26" fill="#858b95">Groups</text>
+    <rect x="304" y="10" width="70" height="23" rx="4" fill="#f0a629"/>
+    <text class="ui-small" x="324" y="25" fill="#15110b">+ Add</text>
+
+    <rect x="12" y="54" width="368" height="32" rx="5" fill="#171a1f" stroke="#373d45"/>
+    <text class="ui-small" x="28" y="75" fill="#aeb4bd">Filter scene...</text>
+    <circle cx="344" cy="70" r="8" fill="#252b33" stroke="#424a55"/>
+    <path d="M341 70h6M344 67v6" stroke="#b9c0c8" stroke-width="1.2"/>
+
+    <rect x="12" y="98" width="368" height="24" fill="#242932"/>
+    <text class="ui-small" x="24" y="114" fill="#7f8792">VIS</text>
+    <text class="ui-small" x="58" y="114" fill="#7f8792">LOCK</text>
+    <text class="ui-small" x="112" y="114" fill="#7f8792">NAME</text>
+    <text class="ui-small" x="328" y="114" fill="#7f8792">OP</text>
+
+    <g transform="translate(0 132)" class="ui">
+      <rect x="12" y="0" width="368" height="28" rx="4" fill="#3d3528" stroke="#f0a629" stroke-opacity=".35"/>
+      <rect x="12" y="0" width="3" height="28" rx="1.5" fill="#f0a629"/>
+      <use href="#eye" x="24" y="5" width="18" height="18" color="#d6d0c4"/>
+      <use href="#body" x="86" y="5" width="18" height="18" color="#f0a629"/>
+      <text x="112" y="19" fill="#f6f0e6">Hull_Body</text>
+      <text class="mono" x="330" y="18" fill="#8fd08f">UNI</text>
+
+      <path d="M74 31v190" stroke="#f0a629" stroke-opacity=".35"/>
+      <path d="M74 47h24" stroke="#f0a629" stroke-opacity=".35"/>
+      <use href="#eye" x="24" y="35" width="18" height="18" color="#aeb4bd"/>
+      <use href="#cube" x="106" y="35" width="18" height="18" color="#8fd08f"/>
+      <text x="132" y="49" fill="#d6dbe2">Hull_Base</text>
+
+      <path d="M74 75h24" stroke="#f0a629" stroke-opacity=".35"/>
+      <use href="#eye" x="24" y="63" width="18" height="18" color="#aeb4bd"/>
+      <use href="#cube" x="106" y="63" width="18" height="18" color="#b998f0"/>
+      <text x="132" y="77" fill="#d6dbe2">Hull_Bevel</text>
+      <rect x="322" y="63" width="38" height="18" rx="3" fill="#b998f0" fill-opacity=".16"/>
+      <text class="mono" x="330" y="76" fill="#b998f0">SFT</text>
+
+      <path d="M74 103h24" stroke="#f0a629" stroke-opacity=".35"/>
+      <use href="#eye" x="24" y="91" width="18" height="18" color="#aeb4bd"/>
+      <use href="#cylinder" x="106" y="91" width="18" height="18" color="#e07070"/>
+      <text x="132" y="105" fill="#d6dbe2">Engine_Cutout</text>
+      <rect x="322" y="91" width="38" height="18" rx="3" fill="#e07070" fill-opacity=".16"/>
+      <text class="mono" x="330" y="104" fill="#e07070">SUB</text>
+
+      <path d="M74 131h24M98 131v84" stroke="#5a90e8" stroke-opacity=".45"/>
+      <use href="#eye" x="24" y="119" width="18" height="18" color="#aeb4bd"/>
+      <use href="#body" x="106" y="119" width="18" height="18" color="#5a90e8"/>
+      <text x="132" y="133" fill="#edf4ff">Turret_Scope</text>
+
+      <path d="M98 159h24" stroke="#5a90e8" stroke-opacity=".45"/>
+      <use href="#eye" x="24" y="147" width="18" height="18" color="#aeb4bd"/>
+      <use href="#cylinder" x="130" y="147" width="18" height="18" color="#8fd08f"/>
+      <text x="156" y="161" fill="#d6dbe2">Turret_Ring</text>
+
+      <path d="M98 187h24" stroke="#5a90e8" stroke-opacity=".45"/>
+      <use href="#eye" x="24" y="175" width="18" height="18" color="#aeb4bd"/>
+      <use href="#sphere" x="130" y="175" width="18" height="18" color="#b998f0"/>
+      <text x="156" y="189" fill="#d6dbe2">Turret_Dome</text>
+
+      <path d="M98 215h24" stroke="#5a90e8" stroke-opacity=".45"/>
+      <use href="#eye" x="24" y="203" width="18" height="18" color="#aeb4bd"/>
+      <use href="#cube" x="130" y="203" width="18" height="18" color="#e07070"/>
+      <text x="156" y="217" fill="#d6dbe2">Hatch_Cut</text>
+      <rect x="322" y="203" width="38" height="18" rx="3" fill="#e07070" fill-opacity=".16"/>
+      <text class="mono" x="330" y="216" fill="#e07070">SUB</text>
+
+      <use href="#eye" x="24" y="243" width="18" height="18" color="#5d636d"/>
+      <path d="M29 248l12 12" stroke="#5d636d" stroke-width="1.2"/>
+      <use href="#cube" x="86" y="243" width="18" height="18" color="#7c8795"/>
+      <text x="112" y="257" fill="#737985">Reference_Mesh</text>
+
+      <use href="#camera" x="86" y="275" width="18" height="18" color="#e8c840"/>
+      <text x="112" y="289" fill="#d6dbe2">Camera</text>
+      <use href="#light" x="86" y="307" width="18" height="18" color="#ffd666"/>
+      <text x="112" y="321" fill="#d6dbe2">Key_Light</text>
+    </g>
+
+    <rect x="0" y="660" width="392" height="28" rx="0" fill="#20242a"/>
+    <circle cx="24" cy="674" r="4" fill="#70c884"/>
+    <text class="ui-small" x="38" y="678" fill="#8d949e">16 items / active body: Hull_Body</text>
+  </g>
+
+  <!-- Concept B -->
+  <g transform="translate(524 124)" class="soft-shadow">
+    <text class="label" x="0" y="-24" fill="#64c7bd">B / SCULPT COMPACT</text>
+    <rect x="0" y="0" width="392" height="688" rx="2" fill="#15191c" stroke="#30363b"/>
+    <rect x="0" y="0" width="392" height="54" fill="#0f1214"/>
+    <text class="ui" x="18" y="23" fill="#eff5f3">OUTLINER</text>
+    <text class="ui-small" x="18" y="39" fill="#68727a">object mode / voxel sculpt</text>
+    <g transform="translate(282 14)">
+      <rect width="26" height="26" rx="3" fill="#20272b" stroke="#394349"/>
+      <path d="M8 13h10M13 8v10" stroke="#64c7bd" stroke-width="1.4"/>
+      <rect x="34" width="26" height="26" rx="3" fill="#20272b" stroke="#394349"/>
+      <path d="M42 10h10M42 16h7" stroke="#a9b3b7" stroke-width="1.3"/>
+      <rect x="68" width="26" height="26" rx="3" fill="#20272b" stroke="#394349"/>
+      <circle cx="81" cy="13" r="5" fill="none" stroke="#a9b3b7" stroke-width="1.2"/>
+      <path d="M85 17l4 4" stroke="#a9b3b7" stroke-width="1.2"/>
+    </g>
+
+    <g transform="translate(14 72)">
+      <rect width="364" height="42" rx="5" fill="#20272b" stroke="#343f45"/>
+      <circle cx="20" cy="21" r="8" fill="#f0a629" fill-opacity=".18" stroke="#f0a629"/>
+      <text class="ui" x="38" y="19" fill="#f5f1e8">Hull_Body</text>
+      <text class="ui-small" x="38" y="33" fill="#8f9aa0">active voxel body / 128 cubed</text>
+      <rect x="284" y="12" width="54" height="18" rx="9" fill="#64c7bd" fill-opacity=".16"/>
+      <text class="mono" x="298" y="25" fill="#64c7bd">LIVE</text>
+    </g>
+
+    <g transform="translate(14 132)" class="ui">
+      <text class="ui-small" x="0" y="12" fill="#68727a">SCENE STACK</text>
+      <rect x="0" y="24" width="364" height="34" rx="3" fill="#28302d"/>
+      <use href="#eye" x="12" y="32" width="18" height="18" color="#d9e4df"/>
+      <use href="#body" x="54" y="32" width="18" height="18" color="#64c7bd"/>
+      <text x="82" y="46" fill="#ecf3ef">Voxel Sculpt</text>
+      <rect x="282" y="32" width="50" height="18" rx="3" fill="#64c7bd" fill-opacity=".16"/>
+      <text class="mono" x="294" y="45" fill="#64c7bd">ACT</text>
+
+      <rect x="0" y="65" width="364" height="30" rx="3" fill="#191e21"/>
+      <path d="M43 65v155" stroke="#64c7bd" stroke-opacity=".35"/>
+      <path d="M43 80h25" stroke="#64c7bd" stroke-opacity=".35"/>
+      <use href="#eye" x="12" y="71" width="18" height="18" color="#9facb0"/>
+      <use href="#cube" x="76" y="71" width="18" height="18" color="#8fd08f"/>
+      <text x="102" y="85" fill="#d5dedf">Clay Base</text>
+
+      <rect x="0" y="96" width="364" height="30" rx="3" fill="#191e21"/>
+      <path d="M43 111h25" stroke="#64c7bd" stroke-opacity=".35"/>
+      <use href="#eye" x="12" y="102" width="18" height="18" color="#9facb0"/>
+      <use href="#sphere" x="76" y="102" width="18" height="18" color="#f0a629"/>
+      <text x="102" y="116" fill="#d5dedf">Clay Buildup</text>
+      <rect x="282" y="102" width="50" height="18" rx="3" fill="#f0a629" fill-opacity=".16"/>
+      <text class="mono" x="294" y="115" fill="#f0a629">ADD</text>
+
+      <rect x="0" y="127" width="364" height="30" rx="3" fill="#221b1d"/>
+      <path d="M43 142h25" stroke="#64c7bd" stroke-opacity=".35"/>
+      <use href="#eye" x="12" y="133" width="18" height="18" color="#9facb0"/>
+      <use href="#cylinder" x="76" y="133" width="18" height="18" color="#e07070"/>
+      <text x="102" y="147" fill="#d5dedf">Panel Groove</text>
+      <rect x="282" y="133" width="50" height="18" rx="3" fill="#e07070" fill-opacity=".16"/>
+      <text class="mono" x="294" y="146" fill="#e07070">CUT</text>
+
+      <rect x="0" y="158" width="364" height="30" rx="3" fill="#191e21"/>
+      <path d="M43 173h25" stroke="#64c7bd" stroke-opacity=".35"/>
+      <use href="#eye" x="12" y="164" width="18" height="18" color="#9facb0"/>
+      <use href="#cube" x="76" y="164" width="18" height="18" color="#b998f0"/>
+      <text x="102" y="178" fill="#d5dedf">Smooth Pass</text>
+      <rect x="282" y="164" width="50" height="18" rx="3" fill="#b998f0" fill-opacity=".16"/>
+      <text class="mono" x="294" y="177" fill="#b998f0">SMT</text>
+
+      <rect x="0" y="206" width="364" height="38" rx="3" fill="#0f1214" stroke="#2f383e"/>
+      <text class="ui-small" x="14" y="222" fill="#68727a">SURFACE MODE</text>
+      <text class="ui-small" x="14" y="237" fill="#d5dedf">3 pending move grabs</text>
+      <rect x="258" y="214" width="76" height="21" rx="3" fill="#64c7bd"/>
+      <text class="ui-small" x="275" y="229" fill="#071213">Voxelize</text>
+
+      <text class="ui-small" x="0" y="278" fill="#68727a">OTHER</text>
+      <use href="#camera" x="10" y="292" width="18" height="18" color="#e8c840"/>
+      <text x="38" y="306" fill="#d5dedf">Camera</text>
+      <use href="#light" x="10" y="322" width="18" height="18" color="#ffd666"/>
+      <text x="38" y="336" fill="#d5dedf">Softbox_Key</text>
+    </g>
+
+    <rect x="0" y="620" width="392" height="68" fill="#0f1214"/>
+    <text class="ui-small" x="18" y="642" fill="#68727a">BRUSH CONTEXT</text>
+    <rect x="18" y="652" width="64" height="20" rx="3" fill="#2c3438"/><text class="ui-small" x="33" y="666" fill="#d5dedf">Draw</text>
+    <rect x="90" y="652" width="64" height="20" rx="3" fill="#2c3438"/><text class="ui-small" x="105" y="666" fill="#d5dedf">Clay</text>
+    <rect x="162" y="652" width="64" height="20" rx="3" fill="#64c7bd"/><text class="ui-small" x="179" y="666" fill="#061314">Move</text>
+    <rect x="234" y="652" width="64" height="20" rx="3" fill="#2c3438"/><text class="ui-small" x="247" y="666" fill="#d5dedf">Pinch</text>
+  </g>
+
+  <!-- Concept C -->
+  <g transform="translate(992 124)" class="soft-shadow">
+    <text class="label" x="0" y="-24" fill="#313438">C / LIGHT TECHNICAL</text>
+    <rect x="0" y="0" width="392" height="688" rx="10" fill="url(#lightPanel)" stroke="#c9c1b3"/>
+    <rect x="0" y="0" width="392" height="64" rx="10" fill="#fbf8f0"/>
+    <text class="ui" x="22" y="28" fill="#171717">Outliner</text>
+    <text class="ui-small" x="22" y="46" fill="#827c72">clean hierarchy / daylight workspace</text>
+    <rect x="272" y="18" width="84" height="28" rx="5" fill="#1f2628"/>
+    <text class="ui-small" x="296" y="36" fill="#f5f2ea">Add</text>
+
+    <g transform="translate(18 82)">
+      <rect width="356" height="34" rx="6" fill="#fffaf1" stroke="#d6cdbf"/>
+      <circle cx="22" cy="17" r="6" fill="none" stroke="#81796e" stroke-width="1.3"/>
+      <path d="M26 21l6 6" stroke="#81796e" stroke-width="1.3"/>
+      <text class="ui-small" x="44" y="21" fill="#8d8578">Search objects, operations, materials</text>
+    </g>
+
+    <g transform="translate(18 134)" class="ui">
+      <text class="ui-small" x="0" y="0" fill="#8d8578">VIS</text>
+      <text class="ui-small" x="40" y="0" fill="#8d8578">LOCK</text>
+      <text class="ui-small" x="104" y="0" fill="#8d8578">OBJECT</text>
+      <text class="ui-small" x="300" y="0" fill="#8d8578">STATE</text>
+
+      <rect x="0" y="16" width="356" height="36" rx="7" fill="#252b2e"/>
+      <use href="#eye" x="10" y="25" width="18" height="18" color="#f4efe6"/>
+      <use href="#body" x="80" y="25" width="18" height="18" color="#f0a629"/>
+      <text x="108" y="39" fill="#fff8ee">Hull_Body</text>
+      <rect x="286" y="25" width="46" height="18" rx="9" fill="#f0a629"/>
+      <text class="mono" x="299" y="38" fill="#1a1510">ROOT</text>
+
+      <path d="M68 60v184" stroke="#d9c6a5" stroke-width="1.2"/>
+      <path d="M68 78h28" stroke="#d9c6a5" stroke-width="1.2"/>
+      <use href="#eye" x="10" y="68" width="18" height="18" color="#5e625f"/>
+      <use href="#cube" x="104" y="68" width="18" height="18" color="#3f8f5b"/>
+      <text x="132" y="82" fill="#262a2b">Hull_Base</text>
+      <rect x="286" y="68" width="46" height="18" rx="9" fill="#dcefe3"/>
+      <text class="mono" x="299" y="81" fill="#3f8f5b">ADD</text>
+
+      <path d="M68 112h28" stroke="#d9c6a5" stroke-width="1.2"/>
+      <use href="#eye" x="10" y="102" width="18" height="18" color="#5e625f"/>
+      <use href="#cylinder" x="104" y="102" width="18" height="18" color="#c85656"/>
+      <text x="132" y="116" fill="#262a2b">Engine_Cutout</text>
+      <rect x="286" y="102" width="46" height="18" rx="9" fill="#f5dede"/>
+      <text class="mono" x="299" y="115" fill="#c85656">SUB</text>
+
+      <path d="M68 146h28" stroke="#d9c6a5" stroke-width="1.2"/>
+      <path d="M96 146v64" stroke="#a8bee2" stroke-width="1.2"/>
+      <use href="#eye" x="10" y="136" width="18" height="18" color="#5e625f"/>
+      <use href="#body" x="104" y="136" width="18" height="18" color="#4e7fd0"/>
+      <text x="132" y="150" fill="#262a2b">Turret_Scope</text>
+      <rect x="286" y="136" width="46" height="18" rx="9" fill="#dde8f8"/>
+      <text class="mono" x="299" y="149" fill="#4e7fd0">BODY</text>
+
+      <path d="M96 180h28" stroke="#a8bee2" stroke-width="1.2"/>
+      <use href="#eye" x="10" y="170" width="18" height="18" color="#5e625f"/>
+      <use href="#sphere" x="132" y="170" width="18" height="18" color="#946ed6"/>
+      <text x="160" y="184" fill="#262a2b">Turret_Dome</text>
+      <rect x="286" y="170" width="46" height="18" rx="9" fill="#eadff7"/>
+      <text class="mono" x="299" y="183" fill="#946ed6">SMT</text>
+
+      <path d="M96 214h28" stroke="#a8bee2" stroke-width="1.2"/>
+      <use href="#eye" x="10" y="204" width="18" height="18" color="#5e625f"/>
+      <use href="#cylinder" x="132" y="204" width="18" height="18" color="#3f8f5b"/>
+      <text x="160" y="218" fill="#262a2b">Barrel_Main</text>
+      <rect x="286" y="204" width="46" height="18" rx="9" fill="#dcefe3"/>
+      <text class="mono" x="299" y="217" fill="#3f8f5b">ADD</text>
+
+      <rect x="0" y="270" width="356" height="1" fill="#d6cdbf"/>
+      <text class="ui-small" x="0" y="298" fill="#8d8578">SCENE DEVICES</text>
+      <use href="#camera" x="10" y="314" width="18" height="18" color="#c79d2d"/>
+      <text x="42" y="328" fill="#262a2b">Camera</text>
+      <use href="#light" x="10" y="346" width="18" height="18" color="#c79d2d"/>
+      <text x="42" y="360" fill="#262a2b">Key_Light</text>
+
+      <rect x="0" y="408" width="356" height="84" rx="8" fill="#fffaf1" stroke="#d6cdbf"/>
+      <text class="ui-small" x="18" y="430" fill="#8d8578">DRAG PREVIEW</text>
+      <path d="M24 454h280" stroke="#4e7fd0" stroke-width="2" stroke-dasharray="5 5"/>
+      <circle cx="304" cy="454" r="8" fill="#4e7fd0"/>
+      <text class="ui-small" x="18" y="478" fill="#5e625f">Drop into Turret_Scope to nest as subtract body</text>
+    </g>
+
+    <rect x="0" y="654" width="392" height="34" rx="0" fill="#fbf8f0"/>
+    <text class="ui-small" x="22" y="675" fill="#81796e">16 objects / 3 hidden / 1 active body</text>
+  </g>
+</svg>

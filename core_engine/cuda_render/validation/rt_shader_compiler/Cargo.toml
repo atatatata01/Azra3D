@@ -1,0 +1,12 @@
+[package]
+license = "AGPL-3.0-or-later"
+authors = ["Dimitri Neron"]
+name = "azra-native-rt-shader-validation"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+naga = { version = "=25.0.1", features = ["wgsl-in", "spv-out"] }
