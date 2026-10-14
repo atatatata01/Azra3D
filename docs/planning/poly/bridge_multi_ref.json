@@ -1,0 +1,161 @@
+{
+ "three_ngon_rings": {
+  "nv": 24,
+  "ne": 40,
+  "nf": 19,
+  "boundary_edges": 0,
+  "nonmanifold_edges": 8,
+  "edge_face_census": {
+   "2": 32,
+   "3": 8
+  },
+  "face_arity": {
+   "4": 16,
+   "8": 3
+  },
+  "volume": 2.828428,
+  "selected_edges": 24,
+  "error": null
+ },
+ "four_ngon_rings": {
+  "nv": 32,
+  "ne": 56,
+  "nf": 28,
+  "boundary_edges": 0,
+  "nonmanifold_edges": 16,
+  "edge_face_census": {
+   "2": 40,
+   "3": 16
+  },
+  "face_arity": {
+   "4": 24,
+   "8": 4
+  },
+  "volume": 7.542475,
+  "selected_edges": 32,
+  "error": null
+ },
+ "two_ngon_rings": {
+  "nv": 16,
+  "ne": 24,
+  "nf": 10,
+  "boundary_edges": 0,
+  "nonmanifold_edges": 0,
+  "edge_face_census": {
+   "2": 24
+  },
+  "face_arity": {
+   "4": 8,
+   "8": 2
+  },
+  "volume": 0.942809,
+  "selected_edges": 16,
+  "error": null
+ },
+ "three_unequal_rings": {
+  "nv": 18,
+  "ne": 44,
+  "nf": 29,
+  "boundary_edges": 0,
+  "nonmanifold_edges": 8,
+  "edge_face_census": {
+   "2": 36,
+   "3": 8
+  },
+  "face_arity": {
+   "3": 26,
+   "4": 1,
+   "6": 1,
+   "8": 1
+  },
+  "volume": 6.281213,
+  "selected_edges": 18,
+  "error": null
+ },
+ "two_islands_two_rings_each": {
+  "nv": 32,
+  "ne": 56,
+  "nf": 28,
+  "boundary_edges": 0,
+  "nonmanifold_edges": 16,
+  "edge_face_census": {
+   "2": 40,
+   "3": 16
+  },
+  "face_arity": {
+   "4": 24,
+   "8": 4
+  },
+  "volume": 3.771238,
+  "selected_edges": 32,
+  "error": null
+ },
+ "three_wire_rings": {
+  "nv": 24,
+  "ne": 40,
+  "nf": 16,
+  "boundary_edges": 16,
+  "nonmanifold_edges": 0,
+  "edge_face_census": {
+   "1": 16,
+   "2": 24
+  },
+  "face_arity": {
+   "4": 16
+  },
+  "volume": 3.771237,
+  "selected_edges": 24,
+  "error": null
+ },
+ "four_wire_rings": {
+  "nv": 32,
+  "ne": 56,
+  "nf": 24,
+  "boundary_edges": 16,
+  "nonmanifold_edges": 0,
+  "edge_face_census": {
+   "1": 16,
+   "2": 40
+  },
+  "face_arity": {
+   "4": 24
+  },
+  "volume": 5.656856,
+  "selected_edges": 32,
+  "error": null
+ },
+ "three_wire_unequal": {
+  "nv": 18,
+  "ne": 44,
+  "nf": 26,
+  "boundary_edges": 10,
+  "nonmanifold_edges": 0,
+  "edge_face_census": {
+   "1": 10,
+   "2": 34
+  },
+  "face_arity": {
+   "3": 26
+  },
+  "volume": 4.00507,
+  "selected_edges": 18,
+  "error": null
+ },
+ "two_islands_wire": {
+  "nv": 32,
+  "ne": 56,
+  "nf": 24,
+  "boundary_edges": 16,
+  "nonmanifold_edges": 0,
+  "edge_face_census": {
+   "1": 16,
+   "2": 40
+  },
+  "face_arity": {
+   "4": 24
+  },
+  "volume": 0.0,
+  "selected_edges": 32,
+  "error": null
+ }
+}

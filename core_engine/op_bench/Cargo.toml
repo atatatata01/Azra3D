@@ -1,0 +1,17 @@
+[package]
+license = "AGPL-3.0-or-later"
+authors = ["Dimitri Neron"]
+name = "op_bench"
+version = "0.1.0"
+edition = "2021"
+description = "Read-only baseline benchmark for the procedural op-graph feasibility audit. Never modifies kernel source."
+
+[dependencies]
+core_math = { path = "../core_math" }
+glam = { workspace = true }
+serde = { workspace = true }
+bincode = "1"
+
+[[bin]]
+name = "op_bench"
+path = "src/main.rs"

@@ -1,0 +1,277 @@
+{
+  "solver": "EXACT",
+  "blender": "5.0.1",
+  "cases": {
+    "cube_minus_corner": {
+      "label": "cube_minus_corner",
+      "nv": 14,
+      "ne": 21,
+      "nf": 9,
+      "euler": 2,
+      "non_manifold_edges": 0,
+      "boundary_edges": 0,
+      "tris": 0,
+      "face_sizes": {
+        "4": 6,
+        "6": 3
+      },
+      "bbox_min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "bbox_max": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "cube_minus_rotcube": {
+      "label": "cube_minus_rotcube",
+      "nv": 10,
+      "ne": 15,
+      "nf": 7,
+      "euler": 2,
+      "non_manifold_edges": 0,
+      "boundary_edges": 0,
+      "tris": 0,
+      "face_sizes": {
+        "4": 5,
+        "5": 2
+      },
+      "bbox_min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "bbox_max": [
+        0.785786509513855,
+        1.0,
+        1.0
+      ]
+    },
+    "cube_minus_cyl16": {
+      "label": "cube_minus_cyl16",
+      "nv": 40,
+      "ne": 64,
+      "nf": 24,
+      "euler": 0,
+      "non_manifold_edges": 0,
+      "boundary_edges": 0,
+      "tris": 0,
+      "face_sizes": {
+        "4": 20,
+        "7": 1,
+        "17": 1,
+        "12": 2
+      },
+      "bbox_min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "bbox_max": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "coplanar_union": {
+      "label": "coplanar_union",
+      "nv": 12,
+      "ne": 20,
+      "nf": 10,
+      "euler": 2,
+      "non_manifold_edges": 0,
+      "boundary_edges": 0,
+      "tris": 0,
+      "face_sizes": {
+        "4": 10
+      },
+      "bbox_min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "bbox_max": [
+        3.0,
+        1.0,
+        1.0
+      ]
+    },
+    "seq_double_subtract": {
+      "cut1": {
+        "label": "seq_after_cut1",
+        "nv": 14,
+        "ne": 21,
+        "nf": 9,
+        "euler": 2,
+        "non_manifold_edges": 0,
+        "boundary_edges": 0,
+        "tris": 0,
+        "face_sizes": {
+          "4": 6,
+          "6": 3
+        },
+        "bbox_min": [
+          -1.0,
+          -1.0,
+          -1.0
+        ],
+        "bbox_max": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "cut2": {
+        "label": "seq_after_cut2",
+        "nv": 15,
+        "ne": 23,
+        "nf": 10,
+        "euler": 2,
+        "non_manifold_edges": 0,
+        "boundary_edges": 0,
+        "tris": 0,
+        "face_sizes": {
+          "6": 2,
+          "5": 2,
+          "4": 6
+        },
+        "bbox_min": [
+          -1.0,
+          -1.0,
+          -1.0
+        ],
+        "bbox_max": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    "intersect_overlap": {
+      "label": "intersect_overlap",
+      "nv": 8,
+      "ne": 12,
+      "nf": 6,
+      "euler": 2,
+      "non_manifold_edges": 0,
+      "boundary_edges": 0,
+      "tris": 0,
+      "face_sizes": {
+        "4": 6
+      },
+      "bbox_min": [
+        -0.5,
+        -0.5,
+        -0.5
+      ],
+      "bbox_max": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "union_overlap": {
+      "label": "union_overlap",
+      "nv": 20,
+      "ne": 30,
+      "nf": 12,
+      "euler": 2,
+      "non_manifold_edges": 0,
+      "boundary_edges": 0,
+      "tris": 0,
+      "face_sizes": {
+        "4": 6,
+        "6": 6
+      },
+      "bbox_min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "bbox_max": [
+        1.5,
+        1.5,
+        1.5
+      ]
+    },
+    "cube_minus_ico": {
+      "label": "cube_minus_ico",
+      "nv": 60,
+      "ne": 133,
+      "nf": 75,
+      "euler": 2,
+      "non_manifold_edges": 0,
+      "boundary_edges": 0,
+      "tris": 57,
+      "face_sizes": {
+        "4": 14,
+        "15": 1,
+        "14": 1,
+        "3": 57,
+        "5": 2
+      },
+      "bbox_min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "bbox_max": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "torus_minus_cube": {
+      "label": "torus_minus_cube",
+      "nv": 122,
+      "ne": 232,
+      "nf": 112,
+      "euler": 2,
+      "non_manifold_edges": 0,
+      "boundary_edges": 0,
+      "tris": 6,
+      "face_sizes": {
+        "4": 96,
+        "3": 6,
+        "5": 8,
+        "11": 2
+      },
+      "bbox_min": [
+        -1.350000023841858,
+        -1.350000023841858,
+        -0.3499999940395355
+      ],
+      "bbox_max": [
+        1.1915265321731567,
+        1.350000023841858,
+        0.3499999940395355
+      ]
+    },
+    "cube_minus_half": {
+      "label": "cube_minus_half",
+      "nv": 8,
+      "ne": 12,
+      "nf": 6,
+      "euler": 2,
+      "non_manifold_edges": 0,
+      "boundary_edges": 0,
+      "tris": 0,
+      "face_sizes": {
+        "4": 6
+      },
+      "bbox_min": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "bbox_max": [
+        0.0,
+        1.0,
+        1.0
+      ]
+    }
+  }
+}

@@ -1,0 +1,5 @@
+blender=4.5.1 LTS mode=unique
+count=100 grid=158x158 total_tris=4992800 build_s=1.3
+S1_object_idle_deselected avg_ms=2.03 (40 iters)
+S2_object_selected avg_ms=2.20 (40 iters)
+S4a_object_wire_overlay avg_ms=2.44 (40 iters)

@@ -1,0 +1,8 @@
+blender=4.5.1 LTS mode=dense
+grid=707x707 tris=999698 build_s=0.4
+S1_object_idle_deselected avg_ms=3.32 (40 iters)
+S2_object_selected avg_ms=3.02 (40 iters)
+S4a_object_wire_overlay avg_ms=3.45 (40 iters)
+edit_mode_enter_s=0.25
+S4_edit_mode_wire avg_ms=3.81 (20 iters)
+edit_mode_exit_s=0.06

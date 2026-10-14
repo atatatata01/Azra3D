@@ -1,0 +1,21 @@
+[package]
+license = "AGPL-3.0-or-later"
+authors = ["Dimitri Neron"]
+name = "cuda_render"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+cuda = ["dep:cudarc"]
+optix = ["cuda"]
+
+[dependencies]
+# Pin cuda-12060: cudarc 0.12 doesn't list 12.8 yet; 12.6 driver ABI works with toolkit 12.8.
+cudarc = { version = "0.12", optional = true, features = ["driver", "nvrtc", "cuda-12060"] }
+bytemuck = { workspace = true }
+glam = { workspace = true }
+core_math = { path = "../core_math" }
+
+[build-dependencies]
+cc = "1"

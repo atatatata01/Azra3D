@@ -1,0 +1,25 @@
+# ai_backend/requirements.txt
+# FourthLayer AI — Texture Generation Server Dependencies
+# Install: pip install -r requirements.txt
+
+# Server
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# AI Model
+torch>=2.0.0
+diffusers>=0.25.0
+transformers>=4.36.0
+accelerate>=0.25.0
+
+# Image processing
+Pillow>=10.0.0
+scipy>=1.11.0
+numpy>=1.24.0
+
+# CLIP material analysis (ai_service.py)
+# Install separately: pip install git+https://github.com/openai/CLIP.git
+# (requires torch, Pillow already listed above)
+
+# Optional: faster attention
+# xformers>=0.0.23

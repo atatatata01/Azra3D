@@ -1,0 +1,229 @@
+﻿cargo :    Compiling core_math v0.1.0 
+(F:\PROJECT\FourthLAyerAi\.claude\worktrees\kernel-locality\core_engine\core_math)
+Au caractère Ligne:1 : 79
++ ... re_engine" ; cargo run -p op_bench --release -- --c-only 2>&1 | Out-F ...
++                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (   Compiling co...gine\core_math):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: unused import: `dist_to_polyline_3d`
+ --> core_math\src\sdf_shapes.rs:5:96
+  |
+5 | use crate::curves::{CurveProfile, sdf_polygon_2d, bevel_2d_profiled, dist_to_open_polyline_2d, 
+dist_to_polyline_3d};
+  |                                                                                                ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unnecessary parentheses around block return value
+   --> core_math\src\primitives.rs:839:29
+    |
+839 | ...                   (hm.sample(u, v) * 2.0 - 1.0)
+    |                       ^                           ^
+    |
+    = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+    |
+839 -                             (hm.sample(u, v) * 2.0 - 1.0)
+839 +                             hm.sample(u, v) * 2.0 - 1.0
+    |
+
+warning: unnecessary parentheses around block return value
+   --> core_math\src\primitives.rs:917:29
+    |
+917 | ...                   (hm.sample(u, v) * 2.0 - 1.0)
+    |                       ^                           ^
+    |
+help: remove these parentheses
+    |
+917 -                             (hm.sample(u, v) * 2.0 - 1.0)
+917 +                             hm.sample(u, v) * 2.0 - 1.0
+    |
+
+warning: unused import: `std::collections::HashSet`
+    --> core_math\src\half_edge.rs:3484:13
+     |
+3484 |         use std::collections::HashSet;
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused doc comment
+  --> core_math\src\bevel_op.rs:16:1
+   |
+16 | / /// Diagnostic from the last [`bevel_edges_offset`] call in this thread (app HUD / toast).
+17 | | /// `effective_segments` may be lower than requested when a blocking multi-edge corner forces flat
+18 | | /// (BEVEL.md STEP 2.5 `unroundable_blocking`).
+   | |_----------------------------------------------^
+   |   |
+   |   rustdoc does not generate documentation for macro invocations
+   |
+   = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+   = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::collections::HashSet`
+  --> core_math\src\knife.rs:22:5
+   |
+22 | use std::collections::HashSet;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unexpected `cfg` condition value: `occt_oracle`
+    --> core_math\src\nurbs_fillet.rs:3522:17
+     |
+3522 | #[cfg(any(test, feature = "occt_oracle"))]
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^ help: remove the condition
+     |
+     = note: no expected values for `feature`
+     = help: consider adding `occt_oracle` as a feature in `Cargo.toml`
+     = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+     = note: `#[warn(unexpected_cfgs)]` on by default
+
+warning: unexpected `cfg` condition value: `occt_oracle`
+    --> core_math\src\nurbs_fillet.rs:3549:21
+     |
+3549 | #[cfg(not(any(test, feature = "occt_oracle")))]
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^ help: remove the condition
+     |
+     = note: no expected values for `feature`
+     = help: consider adding `occt_oracle` as a feature in `Cargo.toml`
+     = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about 
+checking conditional configuration
+
+warning: variable does not need to be mutable
+   --> core_math\src\bevel_op.rs:419:17
+    |
+419 |             let mut slide_walk = |start: usize, start_th: f32, backward: bool| {
+    |                 ----^^^^^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `edge_dir`
+    --> core_math\src\bevel_op.rs:1755:9
+     |
+1755 |     let edge_dir = proj_dir;
+     |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_edge_dir`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `sb`
+    --> core_math\src\nurbs_fillet.rs:1467:13
+     |
+1467 |         let sb = originals[fb].surface.as_ref();
+     |             ^^ help: if this is intentional, prefix it with an underscore: `_sb`
+
+warning: unused variable: `b1`
+    --> core_math\src\nurbs_fillet.rs:2377:14
+     |
+2377 |     let (b0, b1) = face_edge_endpoints(face_b, edge_b)?;
+     |              ^^ help: if this is intentional, prefix it with an underscore: `_b1`
+
+warning: unused variable: `face`
+    --> core_math\src\nurbs_fillet.rs:4139:14
+     |
+4139 |     for (fi, face) in faces.iter().enumerate() {
+     |              ^^^^ help: if this is intentional, prefix it with an underscore: `_face`
+
+warning: variable does not need to be mutable
+    --> core_math\src\chunked_dc.rs:1502:9
+     |
+1502 |     let mut alloc_brick = |sp: &mut SparseIndexOnly, out: &mut SparseWindowAlloc, b: [u32; 3]| {
+     |         ----^^^^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: value assigned to `v` is never read
+    --> core_math\src\display_mesh_ops.rs:1700:17
+     |
+1700 |     let mut v = Vec3::new(1.0, 0.1, 0.05);
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: maybe it is overwritten before being read?
+     = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `run_snapshot` is never used
+  --> core_math\src\mesh_ops\local_ops.rs:84:4
+   |
+84 | fn run_snapshot<F: FnOnce(&mut crate::half_edge::HalfEdgeMesh)>(
+   |    ^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `order_arc_about_vertex` is never used
+    --> core_math\src\bevel_op.rs:1626:4
+     |
+1626 | fn order_arc_about_vertex(idxs: &mut Vec<usize>, positions: &[Vec3], v_pos: Vec3, pe_src: Vec3, ce_dst: Vec3) {
+     |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `solve_corner_lines` is never used
+    --> core_math\src\bevel_op.rs:1646:4
+     |
+1646 | fn solve_corner_lines(
+     |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `closest_point_line_line` is never used
+    --> core_math\src\bevel_op.rs:1698:4
+     |
+1698 | fn closest_point_line_line(p0: Vec3, pd: Vec3, q0: Vec3, qd: Vec3) -> Vec3 {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `loop_slide_meet` is never used
+    --> core_math\src\bevel_op.rs:1822:4
+     |
+1822 | fn loop_slide_meet(v: Vec3, e1_far: Vec3, e2_far: Vec3, emid_far: Vec3, w: f32, v_no: Vec3) -> Option<Vec3> {
+     |    ^^^^^^^^^^^^^^^
+
+warning: function `quad_bezier` is never used
+    --> core_math\src\bevel_op.rs:2028:4
+     |
+2028 | fn quad_bezier(a: Vec3, c: Vec3, b: Vec3, t: f32) -> Vec3 {
+     |    ^^^^^^^^^^^
+
+warning: function `split_by_planes` is never used
+    --> core_math\src\mesh_boolean.rs:1425:4
+     |
+1425 | fn split_by_planes(polys: Vec<Polygon>, planes: &[Plane]) -> Vec<Polygon> {
+     |    ^^^^^^^^^^^^^^^
+
+warning: function `point_segment_dist_sq` is never used
+    --> core_math\src\mesh_boolean.rs:1706:4
+     |
+1706 | fn point_segment_dist_sq(p: Vec3, a: Vec3, b: Vec3) -> f32 {
+     |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `allocated_bricks` and `par_fill_from` are never used
+    --> core_math\src\voxel_sculpt.rs:1246:8
+     |
+ 789 | impl BrickGrid {
+     | -------------- methods in this implementation
+...
+1246 |     fn allocated_bricks(&self) -> usize {
+     |        ^^^^^^^^^^^^^^^^
+...
+1354 |     fn par_fill_from<F: Fn(u32, u32, u32) -> f32 + Sync>(&mut self, f: F) {
+     |        ^^^^^^^^^^^^^
+
+warning: `core_math` (lib) generated 24 warnings (run `cargo fix --lib -p core_math` to apply 11 suggestions)
+   Compiling op_bench v0.1.0 (F:\PROJECT\FourthLAyerAi\.claude\worktrees\kernel-locality\core_engine\op_bench)
+    Finished `release` profile [optimized] target(s) in 35.60s
+     Running `target\release\op_bench.exe --c-only`
+op_bench ÔÇö procedural op-graph baseline. quick=false c_only=true
+sizes: HVertex=28 HalfEdge=20 HFace=20 bytes
+SCENE S | V=1026 HE=3854 F=963 | ops=511 | first-build 2.5 ms | peak-heap 0.9 MB | mesh 0.2 MB
+SCENE M | V=20056 HE=79094 F=19773 | ops=2011 | first-build 43.4 ms | peak-heap 17.5 MB | mesh 4.0 MB
+SCENE L | V=203886 HE=811934 F=202983 | ops=3011 | first-build 491.7 ms | peak-heap 144.6 MB | mesh 32.0 MB
+SCENE XL | V=1003036 HE=4004134 F=1001033 | ops=3011 | first-build 2844.2 ms | peak-heap 960.8 MB | mesh 256.0 MB
+
+== C. locality check (same local op, growing mesh) ==
+RESULT | C: bevel 1 edge-loop         | S   | median       1.1883 ms | p95       1.3385 ms | n=21 | 2 edges ÔÇö if this grows with |mesh|, locality FAILS
+RESULT | C: loop_cut 1 cut            | S   | median       0.0276 ms | p95       0.0326 ms | n=21 | 
+RESULT | C: extrude_face (local op)   | S   | median       0.0275 ms | p95       0.0311 ms | n=21 | in-place op, no rebuild
+RESULT | C: bevel 1 edge-loop         | M   | median      24.7331 ms | p95      25.8065 ms | n=21 | 2 edges ÔÇö if this grows with |mesh|, locality FAILS
+RESULT | C: loop_cut 1 cut            | M   | median       0.1162 ms | p95       0.2301 ms | n=21 | 
+RESULT | C: extrude_face (local op)   | M   | median       0.1117 ms | p95       0.2138 ms | n=21 | in-place op, no rebuild
+RESULT | C: bevel 1 edge-loop         | L   | median     297.6386 ms | p95     304.9378 ms | n=13 | 2 edges ÔÇö if this grows with |mesh|, locality FAILS
+RESULT | C: loop_cut 1 cut            | L   | median       0.9117 ms | p95       0.9641 ms | n=21 | 
+RESULT | C: extrude_face (local op)   | L   | median       0.9120 ms | p95       0.9810 ms | n=21 | in-place op, no rebuild
+RESULT | C: bevel 1 edge-loop         | XL  | median    1968.8178 ms | p95    2038.3002 ms | n=8  | 2 edges ÔÇö if this grows with |mesh|, locality FAILS
+RESULT | C: loop_cut 1 cut            | XL  | median       3.9443 ms | p95       4.4043 ms | n=21 | 
+RESULT | C: extrude_face (local op)   | XL  | median       3.9971 ms | p95       4.4039 ms | n=21 | in-place op, no rebuild

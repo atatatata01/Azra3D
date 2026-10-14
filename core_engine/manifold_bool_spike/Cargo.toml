@@ -1,0 +1,28 @@
+[package]
+license = "AGPL-3.0-or-later"
+authors = ["Dimitri Neron"]
+name = "manifold_bool_spike"
+version = "0.1.0"
+edition = "2021"
+description = """
+SPIKE ONLY — Manifold-class boolean kernel eval as a candidate REPLACEMENT for
+core_math::mesh_boolean. No production wiring. Runs the op_bench / audit failing
+cases (box−sphere16/32, box−CC dense solids) through manifold-csg and compares
+correctness + speed against the existing mesh_boolean path and Blender-oracle
+invariants. Existing mesh_boolean is NOT deleted.
+"""
+publish = false
+
+[dependencies]
+core_math = { path = "../core_math" }
+glam = { workspace = true }
+# Apache-2.0 OR MIT — safe Rust bindings to elalish/manifold (C++ manifold3d).
+# Pulls manifold-csg-sys which builds the C++ library via cmake.
+# default-features=false disables TBB (`parallel`) — oneTBB FetchContent fails on
+# Windows with "Filename too long" under deep cargo OUT_DIR paths. Spike does not
+# need parallel for correctness timing of individual booleans.
+manifold-csg = { version = "0.3", default-features = false }
+
+[[bin]]
+name = "manifold_bool_spike"
+path = "src/main.rs"

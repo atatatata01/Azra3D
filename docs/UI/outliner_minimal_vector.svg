@@ -1,0 +1,210 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="760" viewBox="0 0 1180 760" fill="none">
+  <defs>
+    <style>
+      .page { fill: #161719; }
+      .panel { fill: #232427; stroke: #34363a; }
+      .bar { fill: #292b2f; }
+      .row { fill: #232427; }
+      .row-alt { fill: #252629; }
+      .row-selected { fill: #2e3a43; }
+      .row-active { fill: #2b2a25; }
+      .line { stroke: #474a50; stroke-width: 1; }
+      .tree { stroke: #555961; stroke-width: 1; }
+      .text { fill: #d9dadd; font: 500 13px "Segoe UI", Arial, sans-serif; }
+      .muted { fill: #8f939a; font: 500 11px "Segoe UI", Arial, sans-serif; }
+      .small { fill: #a8abb1; font: 500 10px "Segoe UI", Arial, sans-serif; }
+      .title { fill: #eeeeef; font: 700 22px "Segoe UI", Arial, sans-serif; }
+      .caption { fill: #8f939a; font: 400 13px "Segoe UI", Arial, sans-serif; }
+      .mono { fill: #aeb3ba; font: 600 10px "Consolas", monospace; }
+      .accent { fill: #d89b36; }
+      .accent-stroke { stroke: #d89b36; }
+      .blue { fill: #7ea5c9; }
+      .green { fill: #8dbb8d; }
+      .red { fill: #c77f7b; }
+      .violet { fill: #a99ac8; }
+      .icon { stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+
+    <symbol id="i-eye" viewBox="0 0 18 18">
+      <path class="icon" d="M2.3 9s2.4-3.8 6.7-3.8S15.7 9 15.7 9s-2.4 3.8-6.7 3.8S2.3 9 2.3 9Z"/>
+      <circle cx="9" cy="9" r="2" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-lock" viewBox="0 0 18 18">
+      <rect class="icon" x="4.2" y="8" width="9.6" height="6.8" rx="1.4"/>
+      <path class="icon" d="M6.3 8V5.8a2.7 2.7 0 0 1 5.4 0V8"/>
+    </symbol>
+    <symbol id="i-box" viewBox="0 0 18 18">
+      <path class="icon" d="M9 2.5 15 6v6L9 15.5 3 12V6Z"/>
+      <path class="icon" d="M3 6l6 3.3L15 6M9 9.3v6.2"/>
+    </symbol>
+    <symbol id="i-body" viewBox="0 0 18 18">
+      <rect class="icon" x="3" y="3" width="12" height="12" rx="2.2"/>
+      <circle cx="9" cy="9" r="2.7" fill="currentColor" opacity=".45"/>
+    </symbol>
+    <symbol id="i-cylinder" viewBox="0 0 18 18">
+      <ellipse class="icon" cx="9" cy="5.2" rx="5.2" ry="2.2"/>
+      <path class="icon" d="M3.8 5.2v7.6M14.2 5.2v7.6"/>
+      <ellipse class="icon" cx="9" cy="12.8" rx="5.2" ry="2.2"/>
+    </symbol>
+    <symbol id="i-sphere" viewBox="0 0 18 18">
+      <circle class="icon" cx="9" cy="9" r="6.2"/>
+      <path class="icon" d="M3.4 9h11.2M9 2.8c1.6 1.7 2.4 3.8 2.4 6.2s-.8 4.5-2.4 6.2M9 2.8C7.4 4.5 6.6 6.6 6.6 9s.8 4.5 2.4 6.2"/>
+    </symbol>
+    <symbol id="i-camera" viewBox="0 0 18 18">
+      <rect class="icon" x="2.5" y="5.3" width="9.5" height="7.4" rx="1.4"/>
+      <path class="icon" d="M12 7.2 15.7 5v8l-3.7-2.2Z"/>
+    </symbol>
+    <symbol id="i-light" viewBox="0 0 18 18">
+      <circle class="icon" cx="9" cy="8" r="3"/>
+      <path class="icon" d="M9 2v1.8M9 12.2V14M3.8 3.6 5 4.8M13 4.8l1.2-1.2M3 8h1.8M13.2 8H15"/>
+    </symbol>
+  </defs>
+
+  <rect class="page" width="1180" height="760"/>
+  <text class="title" x="56" y="58">AZRA Outliner - Minimal Vector Direction</text>
+  <text class="caption" x="56" y="82">Flat, restrained, production-friendly. One accent color, neutral hierarchy, no decorative gradients.</text>
+
+  <g transform="translate(56 118)">
+    <rect class="panel" x="0" y="0" width="380" height="570" rx="6"/>
+
+    <rect class="bar" x="1" y="1" width="378" height="38" rx="6"/>
+    <text class="text" x="16" y="25">Outliner</text>
+    <text class="muted" x="288" y="24">Scene</text>
+
+    <rect x="12" y="52" width="356" height="30" rx="4" fill="#1c1d20" stroke="#34363a"/>
+    <text class="muted" x="28" y="72">Search scene</text>
+    <rect x="286" y="57" width="68" height="20" rx="3" fill="#303236"/>
+    <text class="small" x="304" y="71">Filter</text>
+
+    <rect x="0" y="94" width="380" height="24" fill="#292b2f"/>
+    <text class="small" x="17" y="110">V</text>
+    <text class="small" x="48" y="110">L</text>
+    <text class="small" x="88" y="110">Name</text>
+    <text class="small" x="322" y="110">Op</text>
+
+    <g transform="translate(0 120)">
+      <rect class="row-active" x="8" y="0" width="364" height="28" rx="3"/>
+      <rect class="accent" x="8" y="0" width="3" height="28" rx="1.5"/>
+      <use href="#i-eye" x="16" y="5" width="18" height="18" color="#b8bbc0"/>
+      <use href="#i-body" x="76" y="5" width="18" height="18" color="#d89b36"/>
+      <text class="text" x="102" y="19">Hull_Body</text>
+      <text class="mono" x="322" y="18">UNI</text>
+
+      <path class="tree" d="M66 30v204M66 45h22"/>
+      <rect class="row" x="8" y="30" width="364" height="28"/>
+      <use href="#i-eye" x="16" y="35" width="18" height="18" color="#a8abb1"/>
+      <use href="#i-box" x="96" y="35" width="18" height="18" color="#8dbb8d"/>
+      <text class="text" x="122" y="49">Hull_Base</text>
+
+      <path class="tree" d="M66 73h22"/>
+      <rect class="row-alt" x="8" y="58" width="364" height="28"/>
+      <use href="#i-eye" x="16" y="63" width="18" height="18" color="#a8abb1"/>
+      <use href="#i-box" x="96" y="63" width="18" height="18" color="#a99ac8"/>
+      <text class="text" x="122" y="77">Hull_Bevel</text>
+      <text class="mono violet" x="322" y="76">SFT</text>
+
+      <path class="tree" d="M66 101h22"/>
+      <rect class="row" x="8" y="86" width="364" height="28"/>
+      <use href="#i-eye" x="16" y="91" width="18" height="18" color="#a8abb1"/>
+      <use href="#i-cylinder" x="96" y="91" width="18" height="18" color="#c77f7b"/>
+      <text class="text" x="122" y="105">Engine_Cutout</text>
+      <text class="mono red" x="322" y="104">SUB</text>
+
+      <path class="tree" d="M66 129h22M88 129v84"/>
+      <rect class="row-selected" x="8" y="114" width="364" height="28" rx="3"/>
+      <use href="#i-eye" x="16" y="119" width="18" height="18" color="#cfd3d8"/>
+      <use href="#i-body" x="96" y="119" width="18" height="18" color="#7ea5c9"/>
+      <text class="text" x="122" y="133">Turret_Scope</text>
+      <text class="mono blue" x="322" y="132">BODY</text>
+
+      <path class="tree" d="M88 157h22"/>
+      <rect class="row" x="8" y="142" width="364" height="28"/>
+      <use href="#i-eye" x="16" y="147" width="18" height="18" color="#a8abb1"/>
+      <use href="#i-cylinder" x="116" y="147" width="18" height="18" color="#8dbb8d"/>
+      <text class="text" x="142" y="161">Turret_Ring</text>
+
+      <path class="tree" d="M88 185h22"/>
+      <rect class="row-alt" x="8" y="170" width="364" height="28"/>
+      <use href="#i-eye" x="16" y="175" width="18" height="18" color="#a8abb1"/>
+      <use href="#i-sphere" x="116" y="175" width="18" height="18" color="#a99ac8"/>
+      <text class="text" x="142" y="189">Turret_Dome</text>
+      <text class="mono violet" x="322" y="188">SFT</text>
+
+      <path class="tree" d="M88 213h22"/>
+      <rect class="row" x="8" y="198" width="364" height="28"/>
+      <use href="#i-eye" x="16" y="203" width="18" height="18" color="#a8abb1"/>
+      <use href="#i-box" x="116" y="203" width="18" height="18" color="#c77f7b"/>
+      <text class="text" x="142" y="217">Hatch_Cut</text>
+      <text class="mono red" x="322" y="216">SUB</text>
+
+      <path class="tree" d="M66 241h22"/>
+      <rect class="row-alt" x="8" y="226" width="364" height="28"/>
+      <use href="#i-eye" x="16" y="231" width="18" height="18" color="#a8abb1"/>
+      <use href="#i-body" x="96" y="231" width="18" height="18" color="#7ea5c9"/>
+      <text class="text" x="122" y="245">Armor_Plates</text>
+      <text class="mono blue" x="322" y="244">BODY</text>
+
+      <line class="line" x1="8" y1="270" x2="372" y2="270"/>
+      <text class="muted" x="16" y="294">Scene Devices</text>
+
+      <rect class="row" x="8" y="306" width="364" height="28"/>
+      <use href="#i-eye" x="16" y="311" width="18" height="18" color="#a8abb1"/>
+      <use href="#i-camera" x="76" y="311" width="18" height="18" color="#bfa15d"/>
+      <text class="text" x="102" y="325">Camera</text>
+
+      <rect class="row-alt" x="8" y="334" width="364" height="28"/>
+      <use href="#i-eye" x="16" y="339" width="18" height="18" color="#a8abb1"/>
+      <use href="#i-light" x="76" y="339" width="18" height="18" color="#bfa15d"/>
+      <text class="text" x="102" y="353">Key_Light</text>
+
+      <rect class="row" x="8" y="362" width="364" height="28"/>
+      <use href="#i-eye" x="16" y="367" width="18" height="18" color="#686c73"/>
+      <path d="M20 371l10 10" stroke="#686c73" stroke-width="1.2"/>
+      <use href="#i-box" x="76" y="367" width="18" height="18" color="#686c73"/>
+      <text class="text" x="102" y="381" fill="#777b82">Reference_Mesh</text>
+    </g>
+
+    <rect x="1" y="538" width="378" height="31" rx="0" fill="#292b2f"/>
+    <circle cx="18" cy="554" r="3.5" fill="#8dbb8d"/>
+    <text class="small" x="30" y="558">16 items / 1 selected / active: Hull_Body</text>
+  </g>
+
+  <g transform="translate(492 118)">
+    <text class="title" x="0" y="0">Why this direction is calmer</text>
+    <text class="caption" x="0" y="32">This version removes the concept-art feeling and behaves more like a real production panel.</text>
+
+    <g transform="translate(0 72)">
+      <rect x="0" y="0" width="560" height="72" rx="6" fill="#232427" stroke="#34363a"/>
+      <text class="text" x="20" y="28">Flat surfaces</text>
+      <text class="caption" x="20" y="52">No glossy gradients, no heavy glow, no decorative framing.</text>
+    </g>
+
+    <g transform="translate(0 160)">
+      <rect x="0" y="0" width="560" height="72" rx="6" fill="#232427" stroke="#34363a"/>
+      <text class="text" x="20" y="28">Color is functional</text>
+      <text class="caption" x="20" y="52">Amber = active body. Blue = nested body. Green/red/violet only describe boolean operation.</text>
+    </g>
+
+    <g transform="translate(0 248)">
+      <rect x="0" y="0" width="560" height="72" rx="6" fill="#232427" stroke="#34363a"/>
+      <text class="text" x="20" y="28">Rows are compact</text>
+      <text class="caption" x="20" y="52">28px rows keep the Outliner useful for large scenes without becoming noisy.</text>
+    </g>
+
+    <g transform="translate(0 336)">
+      <rect x="0" y="0" width="560" height="72" rx="6" fill="#232427" stroke="#34363a"/>
+      <text class="text" x="20" y="28">Icons are outline-first</text>
+      <text class="caption" x="20" y="52">The icons identify type, while labels and operation tags do the heavy semantic work.</text>
+    </g>
+
+    <g transform="translate(0 456)">
+      <text class="title" x="0" y="0">Suggested app direction</text>
+      <text class="caption" x="0" y="32">Use this as the base visual language, then add polish only where interaction needs it:</text>
+      <text class="caption" x="0" y="64">1. Active body stripe</text>
+      <text class="caption" x="0" y="92">2. Selected row background</text>
+      <text class="caption" x="0" y="120">3. Hover row background</text>
+      <text class="caption" x="0" y="148">4. Drag insertion line</text>
+      <text class="caption" x="0" y="176">5. Boolean op badges</text>
+    </g>
+  </g>
+</svg>

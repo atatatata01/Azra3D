@@ -1,0 +1,55 @@
+[workspace]
+resolver = "3"
+members = [
+  "app",
+  "app_ai",
+  "app_gpu",
+  "app_types",
+  "core_math",
+  "io_bridge",
+  "op_bench",
+  "manifold_bool_spike",
+  "graphics",
+  "render",
+  "ui",
+  "cuda_render",
+]
+
+[profile.dev]
+opt-level = 0
+incremental = true
+debug = 1
+split-debuginfo = "unpacked"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+# Fast release for ITERATION (Run_Fast.bat): good perf, small-change rebuilds in
+# ~tens of seconds instead of full release's 6-8 min (which pays opt3 + fat LTO +
+# codegen-units=1 on the whole app crate for every one-line edit). Incremental so
+# unchanged codegen units are reused. Perf gates / PERF_TARGETS numbers still use
+# --release ONLY — never quote fast-release timings against Blender.
+[profile.fast-release]
+inherits = "release"
+opt-level = 2
+lto = "thin"
+codegen-units = 16
+incremental = true
+
+# Optimize all dependencies in debug mode — fixes slow wgpu/naga shader compilation
+[profile.dev.package."*"]
+opt-level = 2
+
+[workspace.dependencies]
+proptest = "1"
+eframe = { version = "=0.32.3", features = ["wgpu"] }
+glam = { version = "0.29", features = ["serde"] }
+wgpu = "=25.0.2"
+egui = "=0.32.3"
+naga = { version = "=25.0.1", features = ["wgsl-in"] }
+serde = { version = "1.0", features = ["derive"] }
+bytemuck = { version = "1", features = ["derive"] }
+rayon = "1.10"

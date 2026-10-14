@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FourthLayer AI — Outliner v3</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-panel: #2d2d30;
+    --bg-toolbar: #333336;
+    --bg-header: #393940;
+    --bg-row-hover: #3a3a40;
+    --bg-row-selected: #3b5998;
+    --bg-row-active: #3d3a34;
+    --bg-input: #222225;
+    --bg-tab-active: #2d2d30;
+    --bg-tab-inactive: #252528;
+
+    --border: #444448;
+    --border-light: #505055;
+    --border-dark: #222225;
+
+    --text-primary: #e8e8ea;
+    --text-secondary: #b0b0b8;
+    --text-muted: #777780;
+    --text-disabled: #555560;
+
+    --amber: #FF9E3D;
+    --amber-dim: #FF9E3D44;
+    --violet: #A07CFE;
+    --red: #e06060;
+    --green-add: #4CBB5F;
+    --green-add-hover: #5dd070;
+    --cyan: #4ECDC4;
+    --camera-color: #E8C840;
+
+    /* Root body vs nested body */
+    --body-root: #FF9E3D;
+    --body-nested: #5a90e8;
+
+    /* Boolean op prim colors */
+    --op-union: #8fcc8f;
+    --op-subtract: #e07070;
+    --op-intersect: #6ea8e8;
+    --op-smooth: #b898e8;
+    --op-default: #b0b0b8; /* prim with no explicit op (inherits union) */
+
+    /* Scope connector line colors */
+    --scope-0: #FF9E3D;
+    --scope-1: #5a90e8;
+    --scope-2: #A07CFE;
+    --scope-3: #4ECDC4;
+
+    --font-ui: 'DM Sans', 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --row-h: 24px;
+    --panel-w: 380px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #1a1a1d;
+    font-family: var(--font-ui);
+    color: var(--text-primary);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 40px 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .layout { display: flex; gap: 48px; align-items: flex-start; max-width: 1200px; }
+
+  /* ─── OUTLINER ─── */
+  .outliner {
+    width: var(--panel-w);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    overflow: hidden;
+  }
+
+  /* Top Tabs */
+  .top-tabs { display: flex; background: var(--bg-tab-inactive); border-bottom: 1px solid var(--border-dark); }
+  .top-tab {
+    padding: 6px 14px;
+    font-size: 11.5px; font-weight: 500;
+    color: var(--text-muted);
+    background: var(--bg-tab-inactive);
+    border: none;
+    border-right: 1px solid var(--border-dark);
+    border-bottom: 1px solid var(--border-dark);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .top-tab:hover { color: var(--text-secondary); background: #2a2a2d; }
+  .top-tab.active {
+    color: var(--text-primary);
+    background: var(--bg-tab-active);
+    border-bottom-color: var(--bg-tab-active);
+  }
+  .top-tab-add {
+    padding: 6px 10px; font-size: 13px; color: var(--text-muted);
+    background: var(--bg-tab-inactive); border: none;
+    border-right: 1px solid var(--border-dark); border-bottom: 1px solid var(--border-dark);
+    cursor: pointer;
+  }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex; align-items: center; padding: 3px 6px; gap: 4px;
+    background: var(--bg-toolbar); border-bottom: 1px solid var(--border); min-height: 28px;
+  }
+  .toolbar-btn {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 8px; font-size: 11px; font-weight: 500;
+    color: var(--text-secondary); background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: 2px; cursor: pointer;
+    transition: all 0.1s;
+  }
+  .toolbar-btn:hover { color: var(--text-primary); border-color: var(--border-light); }
+  .toolbar-btn .arrow { font-size: 8px; color: var(--text-muted); }
+  .toolbar-spacer { flex: 1; }
+
+  /* Green Add button */
+  .btn-add {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 10px; font-size: 11px; font-weight: 600;
+    color: #fff; background: var(--green-add);
+    border: 1px solid #3a9a48; border-radius: 3px; cursor: pointer;
+    transition: all 0.12s;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+  }
+  .btn-add:hover { background: var(--green-add-hover); }
+  .btn-add .plus { font-size: 14px; font-weight: 700; line-height: 1; }
+
+  /* Column Header */
+  .col-header {
+    display: flex; align-items: center; height: 22px; padding: 0 0 0 0;
+    background: var(--bg-header); border-bottom: 1px solid var(--border);
+    font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.3px;
+  }
+  .ch-eye { width: 28px; text-align: center; flex-shrink: 0; }
+  .ch-lock { width: 24px; text-align: center; flex-shrink: 0; }
+  .ch-name { flex: 1; padding-left: 4px; }
+
+  /* ─── TREE AREA ─── */
+  .tree-area {
+    flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 200px;
+  }
+  .tree-area::-webkit-scrollbar { width: 5px; }
+  .tree-area::-webkit-scrollbar-track { background: var(--bg-panel); }
+  .tree-area::-webkit-scrollbar-thumb { background: #505058; border-radius: 3px; }
+
+  /* ─── ROW ─── */
+  .row {
+    height: var(--row-h); display: flex; align-items: center;
+    padding-right: 6px; position: relative; cursor: pointer; user-select: none;
+  }
+  .row:hover { background: var(--bg-row-hover); }
+  .row.sel { background: var(--bg-row-selected); }
+  .row.sel .nm { color: #fff; font-weight: 500; }
+  .row.active-body { background: var(--bg-row-active); }
+  .row.active-body::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px; background: var(--amber);
+  }
+
+  /* ─── EYE COLUMN (always visible, aligned) ─── */
+  .r-eye {
+    width: 28px; height: var(--row-h);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; cursor: pointer;
+  }
+  .eye-svg { width: 16px; height: 16px; display: block; }
+  .eye-open { color: var(--text-secondary); }
+  .eye-closed { color: var(--text-disabled); }
+  .row:hover .eye-open { color: var(--text-primary); }
+
+  /* ─── LOCK COLUMN ─── */
+  .r-lock {
+    width: 24px; height: var(--row-h);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; cursor: pointer;
+  }
+  .lock-svg { width: 13px; height: 13px; display: block; }
+  .lock-off { color: transparent; }
+  .row:hover .lock-off { color: var(--text-disabled); }
+  .lock-on { color: var(--red); }
+
+  /* ─── TREE INDENT ─── */
+  .indent { flex-shrink: 0; height: 100%; display: flex; position: relative; }
+  .indent-unit {
+    width: 20px; height: var(--row-h); position: relative; flex-shrink: 0;
+  }
+  /* Vertical connector line */
+  .vline {
+    position: absolute; left: 9px; top: 0; bottom: 0; width: 1px;
+  }
+  /* Horizontal branch */
+  .hline {
+    position: absolute; top: 12px; height: 1px; left: 9px; width: 11px;
+  }
+  /* L-bend for last child */
+  .vline-half {
+    position: absolute; left: 9px; top: 0; height: 12px; width: 1px;
+  }
+
+  /* Arrow */
+  .arr {
+    width: 16px; height: var(--row-h);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 9px; color: var(--text-muted);
+    transition: transform 0.12s; cursor: pointer;
+  }
+  .arr.open { transform: rotate(90deg); }
+  .arr.leaf { visibility: hidden; }
+  .arr:hover { color: var(--text-primary); }
+
+  /* ─── ITEM ICON ─── */
+  .ico { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-right: 5px; }
+  .ico svg { width: 16px; height: 16px; }
+
+  /* ─── ITEM NAME ─── */
+  .nm {
+    flex: 1; font-size: 12px; font-weight: 400; color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: var(--row-h);
+  }
+  .nm.dim { color: var(--text-disabled); }
+  .row.sel .nm.dim { color: #ffffffaa; }
+
+  /* Bool badge */
+  .bb {
+    font-family: var(--font-mono); font-size: 9px; font-weight: 500;
+    padding: 1px 4px; border-radius: 2px; margin-left: 4px; flex-shrink: 0;
+  }
+  .bb.union { color: var(--op-union); background: rgba(143,204,143,0.15); }
+  .bb.subtract { color: var(--op-subtract); background: rgba(224,112,112,0.15); }
+  .bb.intersect { color: var(--op-intersect); background: rgba(110,168,232,0.15); }
+  .bb.smooth { color: var(--op-smooth); background: rgba(184,152,232,0.15); }
+
+  /* ─── SHADER TREE VIEW ─── */
+  .shader-view { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  .shader-view.active { display: flex; }
+  .scene-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+  .scene-view.active { }
+
+  /* Shader tree column header */
+  .sh-col-header {
+    display: flex; align-items: center; height: 22px;
+    background: var(--bg-header); border-bottom: 1px solid var(--border);
+    font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.3px;
+  }
+  .sh-ch-name { flex: 1; padding-left: 8px; }
+  .sh-ch-b { width: 24px; text-align: center; flex-shrink: 0; }
+  .sh-ch-pct { width: 48px; text-align: center; flex-shrink: 0; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+  .sh-ch-fx { width: 100px; padding-left: 6px; flex-shrink: 0; }
+
+  /* Shader row */
+  .sh-row {
+    height: var(--row-h); display: flex; align-items: center; position: relative;
+    cursor: pointer; user-select: none;
+  }
+  .sh-row:hover { background: var(--bg-row-hover); }
+  .sh-row.sel { background: var(--bg-row-selected); }
+  .sh-row.sel .nm { color: #fff; }
+
+  .sh-pct {
+    width: 48px; text-align: center; flex-shrink: 0;
+    font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary);
+    border-left: 1px solid var(--border-dark); border-right: 1px solid var(--border-dark);
+  }
+  .sh-row.sel .sh-pct { color: #ffffffcc; }
+  .sh-blend { width: 24px; text-align: center; flex-shrink: 0; font-size: 10px; color: var(--text-muted); }
+  .sh-fx {
+    width: 100px; padding-left: 6px; flex-shrink: 0;
+    font-size: 10px; color: var(--text-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sh-row.sel .sh-fx { color: #ffffffaa; }
+
+  /* Material preview sphere */
+  .mat-sphere {
+    width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; margin-right: 5px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  /* Section header in shader tree */
+  .sh-section {
+    height: 22px; display: flex; align-items: center; padding: 0 8px;
+    background: var(--bg-header); border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border); margin-top: 1px;
+  }
+  .sh-section span { font-size: 10px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.5px; }
+
+  /* ─── STATUS BAR ─── */
+  .status-bar {
+    height: 20px; display: flex; align-items: center; padding: 0 8px;
+    background: var(--bg-toolbar); border-top: 1px solid var(--border);
+    gap: 8px; font-family: var(--font-mono); font-size: 9px; color: var(--text-muted);
+  }
+  .status-bar .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green-add); }
+
+  /* ─── CONTEXT MENU ─── */
+  .ctx { position: fixed; min-width: 200px; background: var(--bg-toolbar); border: 1px solid var(--border-light); box-shadow: 0 6px 20px rgba(0,0,0,0.55); padding: 3px 0; z-index: 1000; display: none; }
+  .ctx.show { display: block; }
+  .ctx-i { height: 24px; display: flex; align-items: center; padding: 0 10px; font-size: 11.5px; color: var(--text-primary); cursor: pointer; gap: 6px; }
+  .ctx-i:hover { background: var(--bg-row-selected); color: #fff; }
+  .ctx-i .k { margin-left: auto; font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); }
+  .ctx-i:hover .k { color: #ffffffaa; }
+  .ctx-i.danger { color: var(--red); }
+  .ctx-i.danger:hover { background: #803030; color: #fff; }
+  .ctx-s { height: 1px; background: var(--border); margin: 2px 0; }
+
+  /* ─── NOTES ─── */
+  .notes { width: 300px; flex-shrink: 0; position: sticky; top: 40px; }
+  .notes h2 { font-size: 11px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--amber); margin-bottom: 14px; }
+  .nt { padding: 10px 12px; background: #252528; border: 1px solid var(--border); margin-bottom: 8px; }
+  .nt h3 { font-size: 11.5px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+  .nt p { font-size: 10.5px; color: var(--text-secondary); line-height: 1.55; }
+  .nt code { font-family: var(--font-mono); font-size: 9.5px; background: #1a1a1d; padding: 1px 4px; border-radius: 2px; color: var(--amber); }
+
+  @media (max-width: 900px) { .layout { flex-direction: column; align-items: center; } .notes { position: static; width: 100%; max-width: var(--panel-w); } }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <div class="outliner" id="outliner">
+    <!-- Tabs -->
+    <div class="top-tabs">
+      <button class="top-tab active" data-view="scenes">Scenes</button>
+      <button class="top-tab" data-view="shading">Shading</button>
+      <button class="top-tab" data-view="groups">Groups</button>
+      <button class="top-tab-add">+</button>
+    </div>
+
+    <!-- ═══════════ SCENES VIEW ═══════════ -->
+    <div class="scene-view active" id="scenesView">
+      <div class="toolbar">
+        <button class="btn-add" id="btnAdd"><span class="plus">+</span> Add Item <span class="arrow" style="font-size:8px;opacity:0.7">▾</span></button>
+        <div class="toolbar-spacer"></div>
+        <button class="toolbar-btn">Select <span class="arrow">▾</span></button>
+        <button class="toolbar-btn">Filter <span class="arrow">▾</span></button>
+      </div>
+      <div class="col-header">
+        <div class="ch-eye">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="display:block;margin:auto;">
+            <ellipse cx="8" cy="8" rx="6.5" ry="4" stroke="#777780" stroke-width="1.3"/>
+            <circle cx="8" cy="8" r="2" fill="#777780"/>
+          </svg>
+        </div>
+        <div class="ch-lock">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" style="display:block;margin:auto;">
+            <rect x="3" y="6" width="8" height="6" rx="1" stroke="#777780" stroke-width="1.2"/>
+            <path d="M5 6V4a2 2 0 014 0v2" fill="none" stroke="#777780" stroke-width="1.2"/>
+          </svg>
+        </div>
+        <div class="ch-name">Name</div>
+      </div>
+      <div class="tree-area" id="treeArea"></div>
+    </div>
+
+    <!-- ═══════════ SHADING VIEW (MODO Shader Tree) ═══════════ -->
+    <div class="shader-view" id="shadingView">
+      <div class="toolbar">
+        <button class="btn-add"><span class="plus">+</span> Add Layer <span class="arrow" style="font-size:8px;opacity:0.7">▾</span></button>
+        <div class="toolbar-spacer"></div>
+        <button class="toolbar-btn">Assign Material</button>
+      </div>
+      <div class="sh-col-header">
+        <div class="sh-ch-name">Name</div>
+        <div class="sh-ch-b">B</div>
+        <div class="sh-ch-pct">%</div>
+        <div class="sh-ch-fx">Effect</div>
+      </div>
+      <div class="tree-area" id="shaderArea"></div>
+    </div>
+
+    <!-- ═══════════ GROUPS VIEW ═══════════ -->
+    <div class="shader-view" id="groupsView">
+      <div class="toolbar">
+        <button class="btn-add"><span class="plus">+</span> New Group</button>
+        <div class="toolbar-spacer"></div>
+      </div>
+      <div class="tree-area" style="display:flex;align-items:center;justify-content:center;min-height:200px;">
+        <span style="font-size:11px;color:var(--text-disabled);">No groups defined</span>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div class="status-bar">
+      <div class="dot"></div>
+      <span id="statusText">16 items · Active: Hull_Body</span>
+    </div>
+  </div>
+
+  <!-- NOTES -->
+  <div class="notes">
+    <h2>v3 Changes</h2>
+    <div class="nt"><h3>Eye Icon Everywhere</h3><p>Consistent SVG eye in every row — open eye = visible, closed eye with slash = hidden. Always aligned in a fixed 28px column. No dots.</p></div>
+    <div class="nt"><h3>Shader Tree = Own Tab</h3><p>Clicking "Shading" tab switches entirely to the MODO-style shader tree with Name / B / % / Effect columns. Materials show preview spheres. Lights and Environments have their own sections.</p></div>
+    <div class="nt"><h3>Green Add Button</h3><p>Bright green <code>+ Add Item</code> pops off the toolbar. Primary action should be the most visible button.</p></div>
+    <div class="nt"><h3>Root vs Nested Body Colors</h3><p>Root SdfBodies (depth 0) are <span style="color:#FF9E3D">amber ◆</span>. Nested SdfBodies (depth 1+) are <span style="color:#5a90e8">blue ◆</span>. Immediate visual distinction.</p></div>
+    <div class="nt"><h3>Prim Colors = Boolean Op</h3><p>Each prim icon is colored by its operation: <span style="color:#8fcc8f">green = union</span>, <span style="color:#e07070">red = subtract</span>, <span style="color:#6ea8e8">blue = intersect</span>, <span style="color:#b898e8">violet = smooth</span>. You see the boolean structure at a glance.</p></div>
+    <div class="nt"><h3>Camera = Distinctive</h3><p>Camera gets a warm gold <span style="color:#E8C840">⬤</span> filled icon — immediately recognizable, never confused with lights or meshes.</p></div>
+    <div class="nt"><h3>Tree Connector Lines</h3><p>Colored by scope depth. Root scope = amber lines, nested = blue, deep = violet. Lines + colors work together to show hierarchy.</p></div>
+  </div>
+</div>
+
+<!-- Context Menu -->
+<div class="ctx" id="ctxMenu">
+  <div class="ctx-i">Rename <span class="k">F2</span></div>
+  <div class="ctx-i">Duplicate <span class="k">Ctrl+D</span></div>
+  <div class="ctx-i">Make Instance <span class="k">Alt+D</span></div>
+  <div class="ctx-s"></div>
+  <div class="ctx-i">Boolean Op ▸</div>
+  <div class="ctx-i">Group Into Body <span class="k">Ctrl+G</span></div>
+  <div class="ctx-i">Ungroup</div>
+  <div class="ctx-s"></div>
+  <div class="ctx-i">Toggle Visibility <span class="k">H</span></div>
+  <div class="ctx-i">Toggle Lock</div>
+  <div class="ctx-s"></div>
+  <div class="ctx-i danger">Delete <span class="k">Del</span></div>
+</div>
+
+<script>
+// ─── SVG ICONS ───
+// Eye: open
+const EYE_OPEN = `<svg class="eye-svg" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="8" rx="6.5" ry="4" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>`;
+// Eye: closed (with slash)
+const EYE_CLOSED = `<svg class="eye-svg" viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="8" rx="6.5" ry="4" stroke="currentColor" stroke-width="1.3"/><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="1.5"/></svg>`;
+// Lock
+const LOCK_ON = `<svg class="lock-svg" viewBox="0 0 14 14"><rect x="3" y="6" width="8" height="6" rx="1" fill="currentColor"/><path d="M5 6V4a2 2 0 014 0v2" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>`;
+const LOCK_OFF = `<svg class="lock-svg" viewBox="0 0 14 14"><rect x="3" y="6" width="8" height="6" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><path d="M5 6V4a2 2 0 014 0v2" fill="none" stroke="currentColor" stroke-width="1"/></svg>`;
+
+// Item icons — prims are colored by boolean op
+function primIcon(shape, color) {
+  const c = color || '#b0b0b8';
+  if (shape === 'sphere') return `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="${c}" opacity="0.25" stroke="${c}" stroke-width="1.2"/><ellipse cx="8" cy="8" rx="6" ry="2.5" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.5"/></svg>`;
+  if (shape === 'cylinder') return `<svg viewBox="0 0 16 16"><ellipse cx="8" cy="4" rx="5" ry="2" fill="${c}" opacity="0.2" stroke="${c}" stroke-width="1.2"/><line x1="3" y1="4" x2="3" y2="12" stroke="${c}" stroke-width="1.2"/><line x1="13" y1="4" x2="13" y2="12" stroke="${c}" stroke-width="1.2"/><ellipse cx="8" cy="12" rx="5" ry="2" fill="${c}" opacity="0.15" stroke="${c}" stroke-width="1.2"/></svg>`;
+  // box (default)
+  return `<svg viewBox="0 0 16 16"><path d="M3 5l5-3 5 3v6l-5 3-5-3z" fill="${c}" opacity="0.15" stroke="${c}" stroke-width="1.2"/><path d="M3 5l5 3 5-3" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.5"/><line x1="8" y1="8" x2="8" y2="14" stroke="${c}" stroke-width="0.8" opacity="0.5"/></svg>`;
+}
+
+function bodyIcon(isRoot) {
+  const c = isRoot ? '#FF9E3D' : '#5a90e8';
+  return `<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2.5" fill="${c}" opacity="0.2" stroke="${c}" stroke-width="1.5"/><circle cx="8" cy="8" r="3" fill="${c}" opacity="0.5"/></svg>`;
+}
+
+const ICON_POLY = `<svg viewBox="0 0 16 16"><polygon points="8,1 14,5.5 14,11 8,15 2,11 2,5.5" fill="#6ea8e8" opacity="0.15" stroke="#6ea8e8" stroke-width="1.3"/><line x1="8" y1="1" x2="8" y2="15" stroke="#6ea8e8" stroke-width="0.7" opacity="0.4"/><line x1="2" y1="5.5" x2="14" y2="5.5" stroke="#6ea8e8" stroke-width="0.7" opacity="0.4"/></svg>`;
+
+const ICON_LIGHT_DIR = `<svg viewBox="0 0 16 16"><circle cx="8" cy="7" r="3.5" fill="#FFD666" opacity="0.3" stroke="#FFD666" stroke-width="1.2"/><line x1="8" y1="1" x2="8" y2="3" stroke="#FFD666" stroke-width="1.2"/><line x1="8" y1="11" x2="8" y2="13" stroke="#FFD666" stroke-width="1.2"/><line x1="3" y1="3" x2="4.5" y2="4.5" stroke="#FFD666" stroke-width="1.2"/><line x1="11.5" y1="4.5" x2="13" y2="3" stroke="#FFD666" stroke-width="1.2"/><line x1="2" y1="7" x2="4" y2="7" stroke="#FFD666" stroke-width="1.2"/><line x1="12" y1="7" x2="14" y2="7" stroke="#FFD666" stroke-width="1.2"/></svg>`;
+const ICON_LIGHT_PT = `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="#FFD666" opacity="0.4"/><circle cx="8" cy="8" r="5.5" fill="none" stroke="#FFD666" stroke-width="0.8" stroke-dasharray="2,2"/></svg>`;
+
+// Camera: filled, warm gold — distinctive
+const ICON_CAMERA = `<svg viewBox="0 0 16 16"><rect x="1.5" y="4" width="9" height="8" rx="1.5" fill="#E8C840" opacity="0.35" stroke="#E8C840" stroke-width="1.3"/><polygon points="10.5,5.5 15,3 15,13 10.5,10.5" fill="#E8C840" opacity="0.5" stroke="#E8C840" stroke-width="1.2"/><circle cx="6" cy="8" r="2" fill="none" stroke="#E8C840" stroke-width="1" opacity="0.6"/></svg>`;
+
+const ICON_MAT = `<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="#A07CFE" opacity="0.2" stroke="#A07CFE" stroke-width="1.2"/><circle cx="8" cy="8" r="3" fill="#A07CFE" opacity="0.3"/></svg>`;
+
+// OP colors
+const OP_COLORS = { union: '#8fcc8f', subtract: '#e07070', intersect: '#6ea8e8', smooth: '#b898e8' };
+const OP_LABELS = { union: 'UNI', subtract: 'SUB', intersect: 'INT', smooth: 'SFT' };
+const SCOPE_COLORS = ['#FF9E3D', '#5a90e8', '#A07CFE', '#4ECDC4'];
+
+function getItemIcon(item) {
+  if (item.type === 'sdf-body') return bodyIcon(item.scopeDepth === 0);
+  if (item.type === 'sdf-prim') {
+    const op = item.boolOp || 'union';
+    return primIcon(item.shape, OP_COLORS[op]);
+  }
+  if (item.type === 'poly-mesh') return ICON_POLY;
+  if (item.type === 'light') return item.lightType === 'point' ? ICON_LIGHT_PT : ICON_LIGHT_DIR;
+  if (item.type === 'camera') return ICON_CAMERA;
+  return ICON_POLY;
+}
+
+// ─── SCENE DATA ───
+const scene = [
+  {
+    id: 'body_hull', type: 'sdf-body', name: 'Hull_Body', boolOp: 'union',
+    expanded: true, scopeDepth: 0, isActiveBody: true,
+    children: [
+      { id: 'p1', type: 'sdf-prim', name: 'Hull_Base', shape: 'box', scopeDepth: 0, boolOp: 'union' },
+      { id: 'p2', type: 'sdf-prim', name: 'Hull_Bevel', shape: 'box', scopeDepth: 0, boolOp: 'smooth' },
+      { id: 'p3', type: 'sdf-prim', name: 'Engine_Cutout', shape: 'cylinder', scopeDepth: 0, boolOp: 'subtract' },
+      {
+        id: 'body_turret', type: 'sdf-body', name: 'Turret_Scope', boolOp: 'union',
+        expanded: true, scopeDepth: 1,
+        children: [
+          { id: 'p4', type: 'sdf-prim', name: 'Turret_Ring', shape: 'cylinder', scopeDepth: 1, boolOp: 'union' },
+          { id: 'p5', type: 'sdf-prim', name: 'Turret_Dome', shape: 'sphere', scopeDepth: 1, boolOp: 'smooth' },
+          {
+            id: 'body_barrel', type: 'sdf-body', name: 'Barrel_Scope', boolOp: 'union',
+            expanded: true, scopeDepth: 2,
+            children: [
+              { id: 'p6', type: 'sdf-prim', name: 'Barrel_Main', shape: 'cylinder', scopeDepth: 2, boolOp: 'union' },
+              { id: 'p7', type: 'sdf-prim', name: 'Barrel_Bore', shape: 'cylinder', scopeDepth: 2, boolOp: 'subtract' },
+            ]
+          },
+          { id: 'p8', type: 'sdf-prim', name: 'Hatch_Cut', shape: 'box', scopeDepth: 1, boolOp: 'subtract' },
+        ]
+      },
+      {
+        id: 'body_armor', type: 'sdf-body', name: 'Armor_Plates', boolOp: 'union',
+        expanded: false, scopeDepth: 1,
+        children: [
+          { id: 'p9', type: 'sdf-prim', name: 'Front_Plate', shape: 'box', scopeDepth: 1, boolOp: 'union' },
+          { id: 'p10', type: 'sdf-prim', name: 'Side_Plate_L', shape: 'box', scopeDepth: 1, boolOp: 'union' },
+          { id: 'p11', type: 'sdf-prim', name: 'Side_Plate_R', shape: 'box', scopeDepth: 1, boolOp: 'union' },
+        ]
+      },
+    ]
+  },
+  { id: 'poly1', type: 'poly-mesh', name: 'Ground_Plane', scopeDepth: -1 },
+  { id: 'poly2', type: 'poly-mesh', name: 'Reference_Mesh', scopeDepth: -1, isHidden: true },
+  { id: 'cam1', type: 'camera', name: 'Camera', scopeDepth: -1 },
+  { id: 'l1', type: 'light', name: 'Key_Light', lightType: 'directional', scopeDepth: -1 },
+  { id: 'l2', type: 'light', name: 'Fill_Light', lightType: 'point', scopeDepth: -1 },
+];
+
+// Shader tree data (MODO-style)
+const shaderTree = {
+  render: [
+    { id: 'sr1', name: 'Alpha Output', pct: 100, fx: 'Alpha', icon: 'output' },
+    { id: 'sr2', name: 'Final Color Output', pct: 100, fx: 'Final Color', icon: 'output' },
+    { id: 'sr3', name: 'Base Shader', pct: 100, fx: 'Full Shading', icon: 'shader' },
+  ],
+  materials: [
+    {
+      id: 'mat1', name: 'Mil_Steel_Worn', color: '#5a6a5a', pct: 100, fx: '(all)',
+      children: [
+        { id: 'ml1', name: 'Steel_Diffuse', pct: 100, fx: 'Diffuse Color', icon: 'texture', color: '#6a7a6a' },
+        { id: 'ml2', name: 'Steel_Normal', pct: 75, fx: 'Bump', icon: 'texture', color: '#8888cc' },
+        { id: 'ml3', name: 'Steel_Roughness', pct: 100, fx: 'Roughness', icon: 'texture', color: '#999' },
+        { id: 'ml4', name: 'Edge_Wear_Mask', pct: 60, fx: 'Diffuse Color', icon: 'gradient', color: '#bb9944' },
+      ]
+    },
+    {
+      id: 'mat2', name: 'Track_Rubber', color: '#2a2a2a', pct: 100, fx: '(all)',
+      children: [
+        { id: 'ml5', name: 'Rubber_Base', pct: 100, fx: 'Diffuse Color', icon: 'texture', color: '#333' },
+      ]
+    },
+    {
+      id: 'mat3', name: 'Optics_Glass', color: '#88aacc', pct: 100, fx: '(all)',
+      children: [
+        { id: 'ml6', name: 'Glass_Refraction', pct: 100, fx: 'Transparency', icon: 'shader', color: '#aaccee' },
+      ]
+    },
+    { id: 'mat_base', name: 'Base Material', color: '#666', pct: 100, fx: '(all)', children: [] },
+  ],
+  lights: [
+    { id: 'sl1', name: 'Directional Light', children: [
+      { id: 'slm1', name: 'Light Material', pct: 100, fx: '(all)', icon: 'material' }
+    ]},
+  ],
+  environments: [
+    { id: 'se1', name: 'Environment', children: [] },
+  ]
+};
+
+// ─── STATE ───
+let selected = new Set(['body_hull']);
+let hiddenIds = new Set(['poly2']);
+let lockedIds = new Set();
+let currentView = 'scenes';
+
+// ─── RENDER SCENE TREE ───
+function renderRow(item, depth, isLast, lineFlags) {
+  const isBody = item.type === 'sdf-body';
+  const hasKids = item.children && item.children.length > 0;
+  const isExpanded = item.expanded;
+  const isSel = selected.has(item.id);
+  const isHidden = hiddenIds.has(item.id) || item.isHidden;
+  const isLocked = lockedIds.has(item.id);
+
+  let cls = 'row' + (isSel ? ' sel' : '') + (item.isActiveBody ? ' active-body' : '');
+
+  // Eye
+  const eyeHtml = `<div class="r-eye" data-id="${item.id}"><span class="${isHidden ? 'eye-closed' : 'eye-open'}">${isHidden ? EYE_CLOSED : EYE_OPEN}</span></div>`;
+
+  // Lock
+  const lockHtml = `<div class="r-lock" data-id="${item.id}"><span class="${isLocked ? 'lock-on' : 'lock-off'}">${isLocked ? LOCK_ON : LOCK_OFF}</span></div>`;
+
+  // Tree lines
+  let indentHtml = '<div class="indent">';
+  for (let i = 0; i < depth; i++) {
+    const lc = SCOPE_COLORS[Math.min(i, 3)];
+    const opacity = '44';
+    indentHtml += `<div class="indent-unit">`;
+    if (lineFlags[i]) {
+      indentHtml += `<div class="vline" style="background:${lc}${opacity}"></div>`;
+    }
+    indentHtml += `</div>`;
+  }
+  indentHtml += '</div>';
+
+  // Branch connector for this row
+  let branchHtml = '';
+  if (depth > 0) {
+    const lc = SCOPE_COLORS[Math.min(depth - 1, 3)];
+    const x = (depth - 1) * 20 + 9 + 28 + 24; // offset for eye + lock columns
+    if (isLast) {
+      branchHtml = `<div class="vline-half" style="background:${lc}44;left:${x}px"></div><div class="hline" style="background:${lc}44;left:${x}px"></div>`;
+    } else {
+      branchHtml = `<div class="vline" style="background:${lc}44;left:${x}px;top:0;bottom:0;"></div><div class="hline" style="background:${lc}44;left:${x}px"></div>`;
+    }
+  }
+
+  // Arrow
+  const arrCls = hasKids ? (isExpanded ? 'arr open' : 'arr') : 'arr leaf';
+
+  // Icon
+  const icon = getItemIcon(item);
+
+  // Name
+  const nmCls = 'nm' + (isHidden ? ' dim' : '');
+
+  // Bool badge (on non-union ops and nested bodies)
+  let badge = '';
+  if (item.boolOp && item.boolOp !== 'union') {
+    badge = `<span class="bb ${item.boolOp}">${OP_LABELS[item.boolOp]}</span>`;
+  }
+
+  let html = `<div class="${cls}" data-id="${item.id}" style="position:relative;">
+    ${branchHtml}
+    ${eyeHtml}${lockHtml}
+    ${indentHtml}
+    <div class="${arrCls}" data-id="${item.id}">▸</div>
+    <div class="ico">${icon}</div>
+    <span class="${nmCls}">${item.name}</span>
+    ${badge}
+  </div>`;
+
+  if (hasKids && isExpanded) {
+    for (let i = 0; i < item.children.length; i++) {
+      const childLast = i === item.children.length - 1;
+      html += renderRow(item.children[i], depth + 1, childLast, [...lineFlags, !childLast]);
+    }
+  }
+  return html;
+}
+
+function renderSceneTree() {
+  let html = '';
+  for (let i = 0; i < scene.length; i++) {
+    html += renderRow(scene[i], 0, i === scene.length - 1, []);
+  }
+  document.getElementById('treeArea').innerHTML = html;
+  attachSceneEvents();
+}
+
+// ─── RENDER SHADER TREE (MODO style) ───
+function renderShaderTree() {
+  const area = document.getElementById('shaderArea');
+  let html = '';
+
+  // Render section
+  html += `<div class="sh-section"><span>▾ Render</span></div>`;
+  for (const r of shaderTree.render) {
+    html += shaderRow(r, 1, false);
+  }
+
+  // Materials
+  for (const m of shaderTree.materials) {
+    const isSel = selected.has(m.id);
+    html += `<div class="sh-row${isSel ? ' sel' : ''}" data-id="${m.id}" style="padding-left:8px;">
+      <div class="indent" style="width:12px"></div>
+      <div class="arr${m.children && m.children.length ? ' open' : ' leaf'}" data-id="${m.id}" style="font-size:8px;">▸</div>
+      <div class="mat-sphere" style="background:radial-gradient(circle at 35% 35%, ${lighten(m.color,40)}, ${m.color} 70%, ${darken(m.color,30)})"></div>
+      <span class="nm" style="flex:1">${m.name}</span>
+      <div class="sh-blend"></div>
+      <div class="sh-pct">${m.pct}</div>
+      <div class="sh-fx">${m.fx}</div>
+    </div>`;
+    if (m.children) {
+      for (const c of m.children) {
+        html += shaderRow(c, 2, true);
+      }
+    }
+  }
+
+  // Lights section
+  html += `<div class="sh-section"><span>▾ Lights</span></div>`;
+  for (const l of shaderTree.lights) {
+    html += `<div class="sh-row" style="padding-left:8px;">
+      <div style="width:20px"></div>
+      <div class="arr open" style="font-size:8px;">▸</div>
+      <div class="ico">${ICON_LIGHT_DIR}</div>
+      <span class="nm" style="flex:1">${l.name}</span>
+      <div class="sh-blend"></div>
+      <div class="sh-pct"></div>
+      <div class="sh-fx"></div>
+    </div>`;
+    if (l.children) {
+      for (const c of l.children) {
+        html += shaderRow(c, 2, false);
+      }
+    }
+  }
+
+  // Environments
+  html += `<div class="sh-section"><span>▾ Environments</span></div>`;
+  for (const e of shaderTree.environments) {
+    html += `<div class="sh-row" style="padding-left:8px;">
+      <div style="width:20px"></div>
+      <div class="arr${e.children && e.children.length ? '' : ' leaf'}" style="font-size:8px;">▸</div>
+      <div class="ico"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#70b0a0" stroke-width="1.2"/><ellipse cx="8" cy="8" rx="6" ry="3" fill="none" stroke="#70b0a0" stroke-width="0.8" opacity="0.5"/><line x1="2" y1="8" x2="14" y2="8" stroke="#70b0a0" stroke-width="0.6" opacity="0.4"/></svg></div>
+      <span class="nm" style="flex:1">${e.name}</span>
+      <div class="sh-blend"></div>
+      <div class="sh-pct"></div>
+      <div class="sh-fx"></div>
+    </div>`;
+  }
+
+  area.innerHTML = html;
+}
+
+function shaderRow(item, depth, hasMat) {
+  const indent = depth * 16;
+  const isSel = selected.has(item.id);
+  let iconHtml = '';
+  if (item.icon === 'texture' && item.color) {
+    iconHtml = `<div style="width:14px;height:14px;border-radius:2px;background:${item.color};border:1px solid rgba(255,255,255,0.1);margin-right:5px;flex-shrink:0;"></div>`;
+  } else if (item.icon === 'gradient') {
+    iconHtml = `<div style="width:14px;height:14px;border-radius:2px;background:linear-gradient(135deg,${item.color},transparent);border:1px solid rgba(255,255,255,0.1);margin-right:5px;flex-shrink:0;"></div>`;
+  } else if (item.icon === 'output') {
+    iconHtml = `<div class="ico"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" fill="none" stroke="#999" stroke-width="1.2"/><circle cx="8" cy="8" r="2" fill="#999"/></svg></div>`;
+  } else if (item.icon === 'shader') {
+    iconHtml = `<div class="ico"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="#aaa" stroke-width="1.2"/><path d="M5 8h6M8 5v6" stroke="#aaa" stroke-width="1"/></svg></div>`;
+  } else if (item.icon === 'material') {
+    iconHtml = `<div class="ico">${ICON_MAT}</div>`;
+  } else {
+    iconHtml = `<div class="ico"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" fill="none" stroke="#888" stroke-width="1"/></svg></div>`;
+  }
+
+  return `<div class="sh-row${isSel ? ' sel' : ''}" data-id="${item.id}">
+    <div style="width:${indent}px;flex-shrink:0;"></div>
+    <div style="width:12px;flex-shrink:0;"></div>
+    ${iconHtml}
+    <span class="nm" style="flex:1">${item.name}</span>
+    <div class="sh-blend"></div>
+    <div class="sh-pct">${item.pct || ''}</div>
+    <div class="sh-fx">${item.fx || ''}</div>
+  </div>`;
+}
+
+function lighten(hex, amt) {
+  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  r = Math.min(255, r + amt); g = Math.min(255, g + amt); b = Math.min(255, b + amt);
+  return `rgb(${r},${g},${b})`;
+}
+function darken(hex, amt) {
+  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  r = Math.max(0, r - amt); g = Math.max(0, g - amt); b = Math.max(0, b - amt);
+  return `rgb(${r},${g},${b})`;
+}
+
+// ─── EVENTS ───
+function attachSceneEvents() {
+  document.querySelectorAll('#treeArea .row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.arr:not(.leaf)') || e.target.closest('.r-eye') || e.target.closest('.r-lock')) return;
+      const id = row.dataset.id;
+      if (e.ctrlKey || e.metaKey) { selected.has(id) ? selected.delete(id) : selected.add(id); }
+      else { selected.clear(); selected.add(id); }
+      renderSceneTree();
+    });
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const id = row.dataset.id;
+      if (!selected.has(id)) { selected.clear(); selected.add(id); renderSceneTree(); }
+      const m = document.getElementById('ctxMenu');
+      m.style.left = e.clientX + 'px'; m.style.top = e.clientY + 'px'; m.classList.add('show');
+    });
+  });
+
+  document.querySelectorAll('#treeArea .arr:not(.leaf)').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleExpand(scene, a.dataset.id);
+      renderSceneTree();
+    });
+  });
+
+  document.querySelectorAll('#treeArea .r-eye').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = el.dataset.id;
+      if (hiddenIds.has(id)) hiddenIds.delete(id); else hiddenIds.add(id);
+      const item = findItem(scene, id);
+      if (item) item.isHidden = hiddenIds.has(id);
+      renderSceneTree();
+    });
+  });
+
+  document.querySelectorAll('#treeArea .r-lock').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = el.dataset.id;
+      if (lockedIds.has(id)) lockedIds.delete(id); else lockedIds.add(id);
+      renderSceneTree();
+    });
+  });
+}
+
+function toggleExpand(items, id) {
+  for (const it of items) {
+    if (it.id === id) { it.expanded = !it.expanded; return true; }
+    if (it.children && toggleExpand(it.children, id)) return true;
+  }
+  return false;
+}
+function findItem(items, id) {
+  for (const it of items) {
+    if (it.id === id) return it;
+    if (it.children) { const f = findItem(it.children, id); if (f) return f; }
+  }
+  return null;
+}
+
+document.addEventListener('click', () => document.getElementById('ctxMenu').classList.remove('show'));
+
+// ─── TAB SWITCHING ───
+document.querySelectorAll('.top-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.top-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentView = tab.dataset.view;
+
+    document.getElementById('scenesView').style.display = currentView === 'scenes' ? 'flex' : 'none';
+    document.getElementById('scenesView').classList.toggle('active', currentView === 'scenes');
+    document.getElementById('shadingView').style.display = currentView === 'shading' ? 'flex' : 'none';
+    document.getElementById('shadingView').classList.toggle('active', currentView === 'shading');
+    document.getElementById('groupsView').style.display = currentView === 'groups' ? 'flex' : 'none';
+    document.getElementById('groupsView').classList.toggle('active', currentView === 'groups');
+  });
+});
+
+// ─── INIT ───
+renderSceneTree();
+renderShaderTree();
+</script>
+</body>
+</html>

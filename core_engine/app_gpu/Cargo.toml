@@ -1,0 +1,19 @@
+[package]
+license = "AGPL-3.0-or-later"
+authors = ["Dimitri Neron"]
+name = "app_gpu"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+core_math  = { path = "../core_math" }
+graphics   = { path = "../graphics" }
+render = { path = "../render" }
+eframe = { workspace = true }
+glam = { workspace = true }
+bytemuck = { workspace = true }
+crossbeam-channel = "0.5"
+pollster = "0.4"
+
+[dev-dependencies]
+naga = { workspace = true }

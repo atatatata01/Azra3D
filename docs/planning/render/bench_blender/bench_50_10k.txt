@@ -1,0 +1,6 @@
+blender=5.0.1
+count=10000 side=100 shared_mesh=1 tris=120000
+build_s=0.6
+view_distance=96.0
+DRAW_WIN avg_ms=19.30 (100 iters)
+DRAW_WIN_SWAP avg_ms=20.27 (100 iters)
