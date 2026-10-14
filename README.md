@@ -45,6 +45,6 @@ Third-party material is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.m
 
 Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md): a short contributor agreement (CLA), signed through a bot comment on your first pull request, is required so the project can keep offering commercial licenses.
 
-## Support the project
+## Contact
 
-Sponsor development on GitHub Sponsors (link to be added by the author).
+Dimitri Neron — dimitrineron@gmail.com (questions, commercial licensing, trademark permission, security reports). For bugs and feature requests, please open an issue.

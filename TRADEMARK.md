@@ -12,4 +12,4 @@ You must not:
 
 "Official AZRA" means builds the Maintainer publishes (or authorises in writing) from unmodified source.
 
-For permission, open an issue on the repository.
+For permission, email dimitrineron@gmail.com or open an issue on the repository.
