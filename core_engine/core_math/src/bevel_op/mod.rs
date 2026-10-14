@@ -724,103 +724,114 @@ pub fn bevel_edges_offset_mut_full(
     // takes the global min of exactly this set, so `w` is bit-identical to before.
     let mut cap: HashMap<u32, f32> = HashMap::new();
     if params.clamp || var.is_some() {
-        // CLAMP OVERLAP — Blender's `geometry_collide_offset` (clean-room port). Per beveled half-edge
-        // B (vb→vc in face F), with A = F's previous edge (at vb) and C = F's next edge (at vc), and
-        // k = 1 for a beveled edge / 0 for unbeveled:
-        //   • COLLAPSE limit — the offset at which the advancing clones of A, B, C meet:
-        //       len(B) / ( (ka + kb·cos θ₁)/sin θ₁ + (kc + kb·cos θ₂)/sin θ₂ )
-        //   • SLIDE limit — when an adjacent edge is UNBEVELED, B's rail terminal-slides along it; walk
-        //     the face over in-line (collinear) edges accumulating the EXTERIOR angle and sum
-        //     len·sin(exterior) until the polygon actually turns.
-        // Iterating BOTH halves of every beveled edge covers both incident faces (Blender iterates all
-        // EdgeHalves per BevVert). This replaces the old blanket "half the shortest incident edge"
-        // clamp, which cut the cylinder cap loop at 0.26·r where Blender allows 0.97·r (the user's
-        // "this is the most I can bevel" report) and halved every chain/L bevel.
-        let safe_div = |a: f32, b: f32| if b.abs() > 1e-9 { a / b } else { 0.0 };
-        let ang3 = |a: Vec3, b: Vec3, c: Vec3| {
-            (a - b).normalize_or_zero().dot((c - b).normalize_or_zero()).clamp(-1.0, 1.0).acos()
-        };
-        // Record one constraint against the edge it constrains (min-wins). A primary edge with NO
-        // entry is UNCONSTRAINED — the caller below falls back to its own length.
-        let mut note = |he_id: u32, v: f32| {
-            if let Some(&p) = und2prim.get(&he_id) {
+        // CLAMP OVERLAP — independent implementation from planar offset-line geometry.
+        //
+        // For a beveled half-edge B (vb→vc, face F) the in-face rail is B's line shifted inward by d.
+        // At each end the rail is cut by the neighbouring face edge:
+        //  * neighbour BEVELED too: its own rail is shifted by d, and the two rails meet on the corner
+        //    bisector. Projected onto B that meeting point sits d·cot(θ/2) from the corner (θ = interior
+        //    angle). cot(θ/2) is finite and → 0 as the neighbour goes in-line (θ → π).
+        //  * neighbour UNBEVELED: the rail ends where it crosses the neighbour's LINE, at distance
+        //    d/sinθ along the neighbour, i.e. d·cotθ along B.
+        // The two rail ends run toward each other, so they collide when d·(t₀ + t₁) = |B|, giving the
+        // COLLAPSE limit |B| / (t₀ + t₁). A non-positive sum (reflex corners) never collides.
+        //
+        // SLIDE limit: an unbeveled neighbour is the track the rail end slides on. The rail is at
+        // height d above B's line, so the track must reach height d before it ends or turns. We walk
+        // the track through in-line (collinear) segments and, while still flat against B's line, onto
+        // the first segment that actually rises; the largest height reached is the limit.
+        // Each directed half-edge of every beveled edge is visited (both incident faces).
+        let eps_len = 1e-6f32;
+        let mut record = |p: u32, lim: f32| {
+            if lim.is_finite() && lim > 0.0 {
                 let slot = cap.entry(p).or_insert(f32::INFINITY);
-                if v < *slot { *slot = v; }
+                if lim < *slot { *slot = lim; }
             }
         };
-        for &he_id in &beveled_he {
-            let he = mesh.he(HalfEdgeId(he_id));
-            if he.face == NO_FACE { continue; }
-            let hes = mesh.face_half_edges(he.face);
-            let m = hes.len();
-            if m < 3 { continue; }
-            let j = match hes.iter().position(|h| h.0 == he_id) { Some(j) => j, None => continue };
-            let prev_j = (j + m - 1) % m;
-            let next_j = (j + 1) % m;
-            let vb = mesh.he_source(HalfEdgeId(he_id)).0;
-            let vc = he.vertex.0;
-            let va = mesh.he_source(hes[prev_j]).0;
-            let vd = mesh.he(hes[next_j]).vertex.0;
-            let (pa, pb, pc, pd) = (orig_pos[va as usize], orig_pos[vb as usize],
-                orig_pos[vc as usize], orig_pos[vd as usize]);
-            let lb = (pc - pb).length();
-            if lb < 1e-7 { continue; }
-            let th1 = ang3(pa, pb, pc);
-            let th2 = ang3(pb, pc, pd);
-            let ka = if beveled_he.contains(&hes[prev_j].0) { 1.0f32 } else { 0.0 };
-            let kc = if beveled_he.contains(&hes[next_j].0) { 1.0f32 } else { 0.0 };
-            // A side imposes a COLLAPSE constraint only when its adjacent edge actually TURNS.
-            // For an IN-LINE neighbour (θ→π, what an extrude leaves behind when it splits an edge
-            // into collinear halves) or a degenerate fold (θ→0), sinθ→0 and this closed form blows
-            // up: measured θ1=180° → denom 1.14e7 → limit 6.5e-8, so `w` was clamped to ZERO and
-            // the bevel silently did nothing (owner 2026-08-02: beveling one segment of a collinear
-            // run produced no geometry at all, while Blender gives a full watertight fillet).
-            // Blender covers the straight case with the slide walk below, not with this formula.
-            let collapse_term = |k: f32, th: f32| -> f32 {
-                let s = th.sin();
-                if s.abs() < 1e-4 { 0.0 } else { (k + th.cos()) / s }
-            };
-            let denom = collapse_term(ka, th1) + collapse_term(kc, th2);
-            let _ = &safe_div;
-            if std::env::var_os("AZRA_BEVEL_CLAMP_DEBUG").is_some() {
-                eprintln!(
-                    "[clamp] he={he_id} lb={lb:.4} th1={:.1}deg th2={:.1}deg ka={ka} kc={kc} denom={denom:.6} collapse={:.6}",
-                    th1.to_degrees(), th2.to_degrees(),
-                    if denom > 1e-6 { lb / denom } else { f32::INFINITY }
-                );
+        // Interior angle in (0, 2π) at a corner of a CCW face: `fwd` leaves the corner along the next
+        // edge, `back` points to the previous corner. Positive turn from fwd to back through the face.
+        let interior_angle = |back: Vec3, fwd: Vec3, n: Vec3| -> Option<f32> {
+            let (back, fwd) = (back.normalize_or_zero(), fwd.normalize_or_zero());
+            if back == Vec3::ZERO || fwd == Vec3::ZERO { return None; }
+            let s = n.dot(fwd.cross(back));
+            let c = fwd.dot(back);
+            let mut th = s.atan2(c);
+            if th < 0.0 { th += std::f32::consts::TAU; }
+            if th < 1e-4 { None } else { Some(th) }
+        };
+        // Height a rail end can slide before its track ends/turns. `steps` are the track segments as
+        // (from, to) point pairs in walking order starting at the corner `origin`.
+        let slide_height = |origin: Vec3, inward: Vec3, steps: &[(Vec3, Vec3)]| -> f32 {
+            let mut h = 0.0f32;
+            let mut ref_dir: Option<Vec3> = None;
+            for &(a, b) in steps {
+                let hn = (b - origin).dot(inward);
+                let dir = (b - a).normalize_or_zero();
+                if hn > h + eps_len {
+                    if let Some(r) = ref_dir { if r.dot(dir) < 0.9999 { break; } }
+                    ref_dir = Some(dir);
+                    h = hn;
+                } else if h > eps_len || hn < -eps_len {
+                    break; // finished rising, or heading below B's line: no track for the rail
+                }
+                // else flat against B's line: keep walking to the first rising segment
             }
-            if denom > 1e-6 { note(he_id, lb / denom); }
-            // Slide walks (Blender: accumulate exterior angles across collinear runs).
-            let mut slide_walk = |start: usize, start_th: f32, backward: bool| {
-                let mut ext = std::f32::consts::PI - start_th;
-                let mut idx = start;
-                let mut slide = 0.0f32;
-                for _ in 0..m {
-                    let s = orig_pos[mesh.he_source(hes[idx]).0 as usize];
-                    let d = orig_pos[mesh.he(hes[idx]).vertex.0 as usize];
-                    slide += (d - s).length() * ext.sin();
-                    if ext >= 1e-4 { break; }
-                    if backward {
-                        let p2 = (idx + m - 1) % m;
-                        let a2 = orig_pos[mesh.he_source(hes[p2]).0 as usize];
-                        ext += std::f32::consts::PI - ang3(a2, s, d);
-                        idx = p2;
-                    } else {
-                        let n2 = (idx + 1) % m;
-                        let d2 = orig_pos[mesh.he(hes[n2]).vertex.0 as usize];
-                        ext += std::f32::consts::PI - ang3(s, d, d2);
-                        idx = n2;
+            if h > eps_len { h } else { f32::INFINITY }
+        };
+        for &p in &primary_edges {
+            let twin = mesh.he(HalfEdgeId(p)).twin;
+            for b in [HalfEdgeId(p), twin] {
+                let fid = mesh.he(b).face;
+                // Face loop starting at B (bounded by the arena size against corrupt links).
+                let mut lp: Vec<HalfEdgeId> = vec![b];
+                let mut cur = mesh.he(b).next;
+                while cur != b && lp.len() <= n_he {
+                    lp.push(cur);
+                    cur = mesh.he(cur).next;
+                }
+                if lp.len() < 3 || cur != b { continue; }
+                let n = mesh.compute_face_normal(fid).normalize_or_zero();
+                if n == Vec3::ZERO { continue; }
+                let seg = |h: HalfEdgeId| -> (Vec3, Vec3) {
+                    (orig_pos[mesh.he_source(h).0 as usize], orig_pos[mesh.he(h).vertex.0 as usize])
+                };
+                let (vb, vc) = seg(b);
+                let len_b = (vc - vb).length();
+                if len_b <= eps_len { continue; }
+                let dir_b = (vc - vb) / len_b;
+                let inward = n.cross(dir_b).normalize_or_zero();
+                let a_he = *lp.last().unwrap();
+                let c_he = lp[1];
+                let (a_from, _) = seg(a_he);
+                let (_, c_to) = seg(c_he);
+                let a_bev = beveled_he.contains(&a_he.0);
+                let c_bev = beveled_he.contains(&c_he.0);
+                // Per-end collapse term.
+                let end_term = |back: Vec3, fwd: Vec3, nb_bev: bool| -> f32 {
+                    match interior_angle(back, fwd, n) {
+                        Some(th) if nb_bev => (0.5 * th).cos() / (0.5 * th).sin(),
+                        Some(th) if th.sin().abs() > 1e-4 => th.cos() / th.sin(),
+                        _ => 0.0,
+                    }
+                };
+                let t0 = end_term(a_from - vb, dir_b, a_bev);
+                let t1 = end_term(vb - vc, c_to - vc, c_bev);
+                if t0 + t1 > 1e-6 { record(p, len_b / (t0 + t1)); }
+                // Slide limits on unbeveled neighbours.
+                if inward != Vec3::ZERO {
+                    if !a_bev {
+                        let steps: Vec<(Vec3, Vec3)> = lp[1..].iter().rev()
+                            .take_while(|h| !beveled_he.contains(&h.0))
+                            .map(|&h| { let (s, d) = seg(h); (d, s) }).collect();
+                        record(p, slide_height(vb, inward, &steps));
+                    }
+                    if !c_bev {
+                        let steps: Vec<(Vec3, Vec3)> = lp[1..].iter()
+                            .take_while(|h| !beveled_he.contains(&h.0))
+                            .map(|&h| seg(h)).collect();
+                        record(p, slide_height(vc, inward, &steps));
                     }
                 }
-                slide
-            };
-            if ka == 0.0 {
-                let s = slide_walk(prev_j, th1, true);
-                if s > 1e-6 { note(he_id, s); }
-            }
-            if kc == 0.0 {
-                let s = slide_walk(next_j, th2, false);
-                if s > 1e-6 { note(he_id, s); }
             }
         }
         // THE GLOBAL CLAMP — the GLOBAL min of the very same constraint set the loop above used to

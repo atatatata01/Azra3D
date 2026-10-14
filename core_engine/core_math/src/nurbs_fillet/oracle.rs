@@ -282,7 +282,7 @@ pub fn sample_azra_points(faces: &[NurbsFace], steps: u32) -> Vec<Vec3> {
         let s = f.surface.as_ref();
         // base=12 → 72 samples on Fillet: multi hole ~0.008 (was 0.021 at ×2)
         let su = match s.name.as_str() {
-            "Fillet" | "Corner" | "OnSame" | "Toroid" => (base * 6).max(48),
+            "Fillet" | "Corner" | "JoinPatch" | "Toroid" => (base * 6).max(48),
             _ => base,
         };
         let sv = su;

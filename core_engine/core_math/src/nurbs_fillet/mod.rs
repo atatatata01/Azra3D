@@ -1,59 +1,64 @@
 ﻿//! Planar-to-planar rolling-ball fillet for NURBS solids (PLAN N4 + N5).
 //!
 //! Cube edge (Î¸ = 90Â°): exact quarter-cylinder, rational quadratic cross-section.
-//! Cube vertex (equal r, orthogonal, **AllSame**): spherical octant corner patch (N5).
+//! Cube vertex (equal r, orthogonal, **Uniform**): spherical octant corner patch (N5).
 //! Gates: |P âˆ’ axis| == r (cylinder), |P âˆ’ centre| == r (sphere), G1 at seams.
 //!
-//! ## Architecture (from OCCT source â€” see `docs/planning/nurbs/FILLET_EDGE_CASES.md`)
+//! ## Design
 //!
-//! - Corners are **N algorithms** (`CornerKind`), not one `count == 3` formula.
-//! - Concavity is first-class (`CornerState`: AllSame / OnSame / OnDiff). The octant is
-//!   **AllSame only** â€” L-bracket / boss-on-plate need other leaves.
+//! - Corners are handled by edge count ([`EdgeValence`]), one routine per count, not one
+//!   `count == 3` formula.
+//! - Corner sign mix is first-class ([`CornerMix`]): the solid edges meeting at a vertex are all
+//!   convex (or all concave), or a mixture. The spherical octant is the **Uniform** case only;
+//!   mixed corners (L-bracket, boss on plate) need other patches.
 //! - Partial results are first-class (`FilletOutcome` + `faulty_vertices`).
-//! - Radius is a **law** (`Radius`), not only a scalar â€” wire `Const` first, keep the enum.
-//! - Unhandled `(CornerKind, CornerState)` â†’ `Unsupported`, never a wrong surface.
+//! - Radius is a **law** (`Radius`), not only a scalar: `Const` is wired first, the enum stays.
+//! - Any unhandled `(EdgeValence, CornerMix)` becomes `Unsupported`, never a wrong surface.
 
 use crate::nurbs::{NurbsFace, NurbsSurface};
 use glam::Vec3;
 
 pub(crate) const W_MID: f32 = std::f32::consts::FRAC_1_SQRT_2; // cos(45Â°) for exact quarter-circle
 
-// â”€â”€ OCCT-shaped types (FILLET_EDGE_CASES.md Â§3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Implemented dispatch still uses the AllSame octant leaf; these enums exist so we
-// never re-introduce a single-predicate corner and so Unsupported is expressible.
+// -- Corner classification types ---------------------------------------------
+// Dispatch still uses the Uniform octant leaf; these enums exist so a corner is never decided by a
+// single predicate and so `Unsupported` can say exactly what was refused.
 
-/// Mirrors `ChFiDS_State` â€” corner **concavity configuration**, not edge count.
+/// Sign mix of the solid edges meeting at a vertex, seen from a filleted edge (or from the vertex
+/// as a whole): are the neighbours convex/concave like that edge, or a mixture?
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CornerState {
-    /// All three concavities on the same side (cube corner).
-    AllSame,
-    /// One edge differs from one neighbour, matches the third (L-bracket class).
-    OnSame,
-    /// One edge differs from both others.
-    OnDiff,
-    FreeBoundary,
-    Closed,
-    Tangent,
+pub enum CornerMix {
+    /// Every valid edge at the vertex has the same sign (cube corner; also all-concave).
+    Uniform,
+    /// Mixed signs and the filleted edge shares its sign with some, but not all, of the others
+    /// (for a whole-vertex query: both signs present).
+    Majority,
+    /// Mixed signs and the filleted edge is the lone odd one out (or has no valid dihedral).
+    Minority,
+    /// Too few valid edges meet at the vertex to form a corner (open boundary).
+    Open,
+    /// Not determined from the geometry available.
+    Undetermined,
 }
 
-/// Mirrors `ChFi3d_Builder` per-valence dispatch â€” separate algorithms, not one with ifs.
+/// Number of solid edges meeting at a corner; each count is a separate routine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CornerKind {
-    One,
-    Two,
-    Three,
-    MoreThan(u8),
-    Singular,
+pub enum EdgeValence {
+    Single,
+    Pair,
+    Triple,
+    Many(u8),
+    Degenerate,
 }
 
-/// Mirrors `PerformSetOfKPart` vs `PerformSetOfKGen`.
+/// How a fillet surface is obtained: closed-form geometry, or a numeric rolling-ball march.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilletSolve {
+pub enum SolveStrategy {
     Analytic,
     NumericRollingBall,
 }
 
-/// Mirrors OCCT `Add` overloads / `SetRadius` â€” model from day one (Const wired today).
+/// Radius specification along an edge: a scalar today, with laws modelled from the start.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Radius {
     Const(f32),
@@ -154,7 +159,7 @@ impl Radius {
     }
 }
 
-/// Partial result â€” mirrors `HasResult` / `BadShape` / `FaultyVertex`.
+/// Result of a batch fillet that may be only partly applied.
 #[derive(Debug, Clone)]
 pub struct FilletOutcome {
     /// Faces after the op (may be partial if `faulty_vertices` is non-empty).
@@ -176,25 +181,25 @@ pub enum FilletError {
     RadiusTooLarge { max: f32 },
     DegenerateEdge,
     BadEdgeIndex,
-    /// Rolling-ball march failed (OCCT `WalkingFailure`).
-    WalkingFailure,
-    /// No valid starting solution (OCCT `StartsolFailure`).
-    StartsolFailure,
-    /// Result self-intersects (OCCT `TwistedSurface`).
-    TwistedSurface,
+    /// Rolling-ball march failed..
+    RollTraceFailed,
+    /// No valid starting solution..
+    NoSeedSolution,
+    /// Result self-intersects..
+    SelfIntersecting,
     /// Unhandled corner configuration — refuse, do not invent a surface.
     Unsupported {
-        kind: CornerKind,
-        state: CornerState,
+        kind: EdgeValence,
+        state: CornerMix,
     },
     /// Deprecated: non-monotone laws are handled by per-station bent rails
     /// ([`shrink_face_edge_law`]). Kept for ABI/toast match; no longer returned.
     NonMonotoneRadiusLaw,
     /// Three (or more) filleted edges meet with **unequal** radii at a vertex.
     ///
-    /// Equal-r AllSame → spherical octant. Unequal → cylinders with free ends only
+    /// Equal-r Uniform → spherical octant. Unequal → cylinders with free ends only
     /// (no invented multi-radius corner). Soft fault on the partial outcome; geometry
-    /// still builds edge fillets. OCCT `SetRadius` per-vertex walking blend is Tier 1.10.
+    /// still builds edge fillets. A per-vertex variable-radius blend is planned work (Tier 1.10).
     UnequalRadiusCorner {
         radii: [f32; 3],
     },

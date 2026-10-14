@@ -1,6 +1,6 @@
 // Free-standing geometry helpers (split from half_edge.rs — pure relocation).
 
-use glam::{Mat3, Vec2, Vec3};
+use glam::{Vec2, Vec3};
 
 // ============================================================
 // Geometry helpers (shared, no mesh required)
@@ -57,38 +57,109 @@ pub fn face_center_median_weighted(pts: &[Vec3]) -> Vec3 {
     if totw != 0.0 { cent / totw } else { pts[0] }
 }
 
-/// GEOMETRIC (least-squares) best-fit circle of 2D points: minimizes `Σ(‖v − c‖ − r)²` over the
-/// centre `c` and radius `r` by Gauss-Newton from the start `(0, 0, 1)`.
+/// Best-fit circle `(centre, radius)` of 2D points in the geometric least-squares sense:
+/// minimises `sum_i (|p_i - c| - r)^2` over the centre `c` and radius `r`.
 ///
-/// This is a faithful port of LoopTools' `circle_calculate_best_fit` (the `fit='best'` default of
-/// `bpy.ops.mesh.looptools_circle`), including its start point and its `1e-6` convergence test, so
-/// [`HalfEdgeMesh::circle_region`] reproduces Blender's radius exactly.
+/// Independent implementation from the standard literature on circle fitting (Coope 1993;
+/// Chernov, "Circular and Linear Regression"): the points are centred on their centroid, an
+/// algebraic (Kasa) fit supplies the initial guess — a 2x2 linear solve of
+/// `x^2 + y^2 + D x + E y + F = 0` in least squares — and Levenberg-Marquardt-damped
+/// Gauss-Newton then refines it on the true geometric residuals. All arithmetic is `f64`.
 ///
-/// NOTE this is the GEOMETRIC fit, not the algebraic (Kåsa) one — they give different answers, and
-/// Blender uses the geometric one. It is also NOT the mean distance: mean and best-fit coincide only
-/// when the points are symmetric about their centroid (see `circle_region`'s doc comment).
+/// NOTE this is the GEOMETRIC fit, not the algebraic one (they differ for noisy / asymmetric
+/// input), and it is NOT the mean distance to the centroid: those coincide only when the
+/// points are symmetric about their centroid (see `circle_region`'s doc comment).
+///
+/// Fewer than 3 points returns `(ZERO, 1.0)`. Collinear / coincident input has no finite
+/// circle; it returns the centroid with the mean distance to it.
 pub(super) fn best_fit_circle_2d(pts: &[Vec2]) -> (Vec2, f32) {
-    let mut c = Vec2::ZERO;
-    let mut r = 1.0f32;
-    if pts.len() < 3 { return (c, r); }
-    for _ in 0..500 {
-        let mut ata = Mat3::ZERO; // JᵀJ (symmetric)
-        let mut atk = Vec3::ZERO; // Jᵀk
-        for &v in pts {
-            let d = (v - c).length();
-            if d < 1e-12 { continue; } // a point AT the centre has no gradient — skip it
-            let j = Vec3::new((c.x - v.x) / d, (c.y - v.y) / d, -1.0);
-            atk += j * (r - d);
-            // JᵀJ += j ⊗ j (column-major outer product; symmetric, so the layout convention is moot)
-            ata += Mat3::from_cols(j * j.x, j * j.y, j * j.z);
-        }
-        if ata.determinant().abs() < 1e-12 { break; } // degenerate (e.g. collinear points)
-        let delta = ata.inverse() * atk;
-        c.x += delta.x;
-        c.y += delta.y;
-        r += delta.z;
-        if delta.abs().max_element() < 1e-6 { break; }
+    if pts.len() < 3 { return (Vec2::ZERO, 1.0); }
+    let n = pts.len() as f64;
+    let (mut mx, mut my) = (0.0f64, 0.0f64);
+    for p in pts { mx += p.x as f64; my += p.y as f64; }
+    mx /= n; my /= n;
+    let q: Vec<(f64, f64)> = pts.iter().map(|p| (p.x as f64 - mx, p.y as f64 - my)).collect();
+
+    let mean_dist = |cx: f64, cy: f64| -> f64 {
+        q.iter().map(|&(x, y)| ((x - cx).powi(2) + (y - cy).powi(2)).sqrt()).sum::<f64>() / n
+    };
+
+    // Kasa: minimise sum (x^2+y^2 + D x + E y + F)^2. With centred data sum x = sum y = 0, so the
+    // normal equations decouple: D = -Szx/Sxx-style 2x2 system, centre = (-D/2, -E/2).
+    let (mut sxx, mut syy, mut sxy, mut sxz, mut syz) = (0.0f64, 0.0, 0.0, 0.0, 0.0);
+    for &(x, y) in &q {
+        let z = x * x + y * y;
+        sxx += x * x; syy += y * y; sxy += x * y; sxz += x * z; syz += y * z;
     }
-    (c, r.abs())
+    let det = sxx * syy - sxy * sxy;
+    let scale2 = sxx + syy;
+    if !(det.abs() > 1e-12 * scale2 * scale2) || !det.is_finite() {
+        let r = mean_dist(0.0, 0.0);
+        return (Vec2::new(mx as f32, my as f32), r as f32);
+    }
+    // [sxx sxy; sxy syy] [D; E] = -[sxz; syz]
+    let d = (-sxz * syy + syz * sxy) / det;
+    let e = (-syz * sxx + sxz * sxy) / det;
+    let (mut cx, mut cy) = (-0.5 * d, -0.5 * e);
+    let mut r = mean_dist(cx, cy);
+
+    // Geometric refinement. Residual f_i = |q_i - c| - r; Jacobian row = (-ux, -uy, -1) with
+    // u = unit(q_i - c). Solve (J^T J + lambda I) delta = -J^T f, accept only if cost drops.
+    let cost = |cx: f64, cy: f64, r: f64| -> f64 {
+        q.iter().map(|&(x, y)| (((x - cx).powi(2) + (y - cy).powi(2)).sqrt() - r).powi(2)).sum()
+    };
+    let mut cur = cost(cx, cy, r);
+    let mut lambda = 1e-3f64;
+    for _ in 0..100 {
+        let mut a = [[0.0f64; 3]; 3];
+        let mut g = [0.0f64; 3];
+        for &(x, y) in &q {
+            let (dx, dy) = (x - cx, y - cy);
+            let dist = (dx * dx + dy * dy).sqrt();
+            if dist < 1e-300 { continue; }
+            let row = [-dx / dist, -dy / dist, -1.0];
+            let f = dist - r;
+            for i in 0..3 {
+                g[i] += row[i] * f;
+                for j in 0..3 { a[i][j] += row[i] * row[j]; }
+            }
+        }
+        let mut improved = false;
+        for _ in 0..30 {
+            let mut m = a;
+            for i in 0..3 { m[i][i] += lambda * (a[i][i].max(1e-12)); }
+            let Some(step) = solve3(&m, [-g[0], -g[1], -g[2]]) else { lambda *= 10.0; continue; };
+            let (ncx, ncy, nr) = (cx + step[0], cy + step[1], r + step[2]);
+            let nc = cost(ncx, ncy, nr);
+            if nc.is_finite() && nc <= cur {
+                let tiny = step[0].abs().max(step[1].abs()).max(step[2].abs()) <= 1e-12 * (r.abs() + 1.0);
+                cx = ncx; cy = ncy; r = nr; cur = nc;
+                lambda = (lambda * 0.3).max(1e-12);
+                improved = !tiny;
+                break;
+            }
+            lambda *= 10.0;
+        }
+        if !improved { break; }
+    }
+    (Vec2::new((cx + mx) as f32, (cy + my) as f32), r.abs() as f32)
+}
+
+/// Solve a 3x3 linear system by Cramer's rule; `None` when (near-)singular.
+fn solve3(m: &[[f64; 3]; 3], b: [f64; 3]) -> Option<[f64; 3]> {
+    let det3 = |a: &[[f64; 3]; 3]| -> f64 {
+        a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1])
+            - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
+            + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0])
+    };
+    let d = det3(m);
+    if !d.is_finite() || d.abs() < 1e-300 { return None; }
+    let mut out = [0.0f64; 3];
+    for k in 0..3 {
+        let mut t = *m;
+        for i in 0..3 { t[i][k] = b[i]; }
+        out[k] = det3(&t) / d;
+    }
+    Some(out)
 }
 

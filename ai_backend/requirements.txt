@@ -1,5 +1,6 @@
 # ai_backend/requirements.txt
-# FourthLayer AI — Texture Generation Server Dependencies
+# AZRA — optional AI texture generation server dependencies
+# (separate Python program; every package and model keeps its own license)
 # Install: pip install -r requirements.txt
 
 # Server

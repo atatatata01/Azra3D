@@ -700,43 +700,46 @@ pub fn falloff_weight_preset(e: f32, hardness: f32, preset: FalloffPreset) -> f3
     falloff_curve_only(x, preset)
 }
 
-/// Blender's SPACING-OVERLAP strength attenuation — verbatim port of
-/// `paint_stroke_integrate_overlap` + `paint_stroke_overlapped_curve`
-/// (paint_stroke.cc, Blender 3.6; gated there by BRUSH_SPACE_ATTEN, default ON for
-/// sculpt): dabs land `spacing` apart, so any surface point is covered by ~1/spacing
-/// overlapping dabs — Blender divides the per-dab strength by the PEAK summed falloff of
-/// that dab train, which is exactly what makes a stroke's total deposit
-/// `≈ strength × radius` regardless of spacing. Without it, halving spacing doubles the
-/// deposit (the "nothing feels like Blender" class).
+/// Per-dab strength attenuation for a train of overlapping dabs (independent
+/// implementation, written from the first-principles model below; not derived from any
+/// third-party source).
 ///
-/// `spacing` is in RADIUS units (AZRA's `stroke_spacing`; Blender's `h = spacing%/50` on
-/// the same [-1,1] curve domain). Returns 1.0 at spacing ≥ 2 radii (no overlap), else
-/// `1 / max_phase Σ_k falloff(|x − k·spacing|)` sampled at 10 phases like Blender.
+/// Model: dabs are stamped every `spacing` radii along the stroke axis. A surface point on
+/// the axis at coordinate `x` receives `S(x) = sum_k w(|x - k*spacing|)` where `w(d)` is the
+/// brush falloff at normalised distance `d` (1 at the centre, 0 at `d >= 1`). `S` is
+/// periodic in `spacing`, so its worst case is found by scanning one period. Dividing each
+/// dab's strength by that peak makes the strongest accumulated deposit equal the strength
+/// of a single dab, independent of spacing (halving the spacing no longer doubles the
+/// deposit).
+///
+/// `spacing` is in RADIUS units (AZRA's `stroke_spacing`). Returns 1.0 once dabs no longer
+/// overlap (`spacing >= 2`) and never amplifies (the result is clamped to at most 1).
+/// Otherwise `1 / max_u sum_k w(|u + k*spacing|)`, with `u` sampled at
+/// `PHASE_SAMPLES` evenly spaced offsets across one period.
 pub fn stroke_overlap_factor(spacing: f32, hardness: f32, preset: FalloffPreset) -> f32 {
-    let h = spacing.max(0.002);
-    if h >= 2.0 {
-        return 1.0; // Blender: spacing ≥ 100% of diameter → no attenuation
+    const PHASE_SAMPLES: usize = 32;
+    let step = spacing.max(0.002);
+    if step >= 2.0 {
+        return 1.0;
     }
-    let n = (2.0 / h).ceil() as usize; // dab count covering the [-1, 1] curve domain
-    let m = 10usize; // Blender samples 10 phases
-    let mut max = 0.0f32;
-    for i in 0..m {
-        let x0 = (i as f32 / m as f32) - 1.0;
+    // Dabs whose centre lies within one radius of the probe point contribute.
+    let reach = (1.0 / step).ceil() as i32;
+    let mut peak = 0.0f32;
+    for s in 0..PHASE_SAMPLES {
+        let u = step * s as f32 / PHASE_SAMPLES as f32;
         let mut sum = 0.0f32;
-        for k in 0..=n {
-            let xx = (x0 + k as f32 * h).abs();
-            if xx < 1.0 {
-                sum += falloff_weight_preset(1.0 - xx, hardness, preset);
+        for k in -reach..=reach {
+            let d = (u + k as f32 * step).abs();
+            if d < 1.0 {
+                sum += falloff_weight_preset(1.0 - d, hardness, preset);
             }
         }
-        if sum > max {
-            max = sum;
-        }
+        peak = peak.max(sum);
     }
-    if max <= 1e-6 {
+    if peak <= 1.0 {
         1.0
     } else {
-        (1.0 / max).min(1.0)
+        1.0 / peak
     }
 }
 

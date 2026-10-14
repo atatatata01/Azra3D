@@ -2,6 +2,15 @@
 
 use super::*;
 
+/// One loop's planned circle layout (see `plan_circle_loop`).
+struct LoopPlanOut {
+    com: Vec3,
+    normal: Vec3,
+    radius: f32,
+    /// (vertex, unit in-plane direction, new position)
+    moves: Vec<(VertexId, Vec3, Vec3)>,
+}
+
 impl HalfEdgeMesh {
     /// Inset a face by `amount`. Returns the new inner face.
     /// Creates connecting quads between the original boundary and the inset face (Blender-style).
@@ -261,8 +270,10 @@ impl HalfEdgeMesh {
         }
     }
 
-    /// Reshape a face region's BOUNDARY LOOP onto a CIRCLE — Blender's LoopTools **Circle**
-    /// (`bpy.ops.mesh.looptools_circle`). PURE RESHAPE: it only moves existing vertices, so vertex /
+    /// Reshape a face region's BOUNDARY LOOP onto a CIRCLE. Independent implementation written from
+    /// the geometry (plane fit + least-squares circle fit + polar re-layout); its observable behaviour
+    /// is cross-checked against Blender's LoopTools Circle output as a black-box oracle only.
+    /// PURE RESHAPE: it only moves existing vertices, so vertex /
     /// edge / face counts, every id, and watertightness are all preserved (no `from_polygons` rebuild —
     /// feedback_half_edge_hard_frozen).
     ///
@@ -278,15 +289,15 @@ impl HalfEdgeMesh {
     ///   vertex keeps its own angle.
     /// * `relax_passes` — an AZRA EXTENSION (Blender's Circle never touches the interior); see below.
     ///
-    /// # The algorithm (verified against the real addon — `docs/planning/poly/circle_ref.py`)
+    /// # The algorithm (behaviour compared with the oracle in `docs/planning/poly/circle_ref.py`)
     /// Per boundary loop: centroid `com` + best-fit plane; project the loop into that plane;
     /// least-squares best-fit circle -> `(fitted_centre, r)`; each vertex's DIRECTION is taken about
-    /// `fitted_centre`; the vertex is then placed at that direction × `r` **from `com`**.
+    /// `fitted_centre`; the vertex is then placed at that direction × `r` **from `com`**. The fit is
+    /// [`best_fit_circle_2d`] (geometric least squares).
     ///
-    /// **The circle is centred on the loop CENTROID, not on the fitted centre** — LoopTools computes
-    /// `(x0, y0, r)` and then only ever uses `x0, y0` for the angular reference: `circle_project_regular`
-    /// writes back `[cos(t)*r, sin(t)*r]` with no `+x0, +y0`, and those 2D coords are relative to `com`.
-    /// This is faithfully reproduced. It also means the radius is the best fit about a centre that is
+    /// **The circle is centred on the loop CENTROID, not on the fitted centre** (this is the observed
+    /// behaviour of the oracle, which AZRA matches): the fit yields `(centre, r)`, but the centre is used
+    /// only as the angular reference, and positions are written as `com + r * dir`. It also means the radius is the best fit about a centre that is
     /// then discarded — so `r` is NOT the mean distance from `com`, though the two COINCIDE whenever the
     /// loop is symmetric about its centroid (a grid region on a box face, the common case). On the
     /// asymmetric oracle case they differ: Blender/AZRA give 1.138111, the mean gives 1.137707.
@@ -346,136 +357,124 @@ impl HalfEdgeMesh {
     /// algorithm and its deliberate divergences from LoopTools.
     fn circle_reshape_loops(&mut self, loops: &[Vec<VertexId>], live: &[FaceId], radius: Option<f32>,
                             flatten: bool, regular: bool, relax_passes: u32) -> CircleRegionResult {
-        use std::collections::{HashMap, HashSet};
+        use std::collections::HashSet;
 
-        // ---- fit + reshape every boundary loop --------------------------------------------------
-        let mut fits: Vec<CircleLoopFit> = Vec::new();
-        let mut moves: Vec<(VertexId, Vec3)> = Vec::new();
+        // ---- stage 1: plan every loop WITHOUT touching the mesh, so a refusal leaves it intact ----
+        let mut plans: Vec<LoopPlanOut> = Vec::with_capacity(loops.len());
         for ring in loops {
-            let pts: Vec<Vec3> = ring.iter().map(|&v| self.vert(v).position).collect();
-            let com = pts.iter().copied().sum::<Vec3>() / pts.len() as f32;
-
-            // Best-fit plane normal: the loop's own Newell normal, falling back to the region's
-            // area-weighted face normal for a degenerate (collinear / figure-eight) ring.
-            let mut normal = newell_normal(&pts).normalize_or_zero();
-            if normal == Vec3::ZERO {
-                let mut acc = Vec3::ZERO;
-                for &f in live {
-                    let fp: Vec<Vec3> = self.face_vertices(f).iter().map(|&v| self.vert(v).position).collect();
-                    acc += newell_normal(&fp); // unnormalized => area-weighted
-                }
-                normal = acc.normalize_or_zero();
-            }
-            if normal == Vec3::ZERO { return CircleRegionResult::default(); } // no plane — refuse
-
-            // Orthonormal in-plane basis. Any basis gives the SAME result (see the doc comment), so
-            // unlike LoopTools we do not need its unnormalized p/q and their 1/|p| bookkeeping.
-            let p = normal.any_orthonormal_vector();
-            let q = normal.cross(p);
-            let to_2d = |w: Vec3| -> Vec2 { let l = w - com; Vec2::new(p.dot(l), q.dot(l)) };
-            let locs: Vec<Vec2> = pts.iter().map(|&w| to_2d(w)).collect();
-
-            // ANCHOR = the loop vertex closest to com, measured in 3D BEFORE projection (LoopTools'
-            // `circle_shift_loop`). Ties resolve to the lowest loop index, as they do in Blender.
-            let anchor = (0..pts.len())
-                .min_by(|&a, &b| {
-                    let da = (pts[a] - com).length_squared();
-                    let db = (pts[b] - com).length_squared();
-                    da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-                })
-                .unwrap_or(0);
-
-            let (fc, fit_r) = best_fit_circle_2d(&locs);
-            let r = radius.unwrap_or(fit_r);
-            if !r.is_finite() || r <= 1e-9 { return CircleRegionResult::default(); }
-
-            let n = locs.len();
-            // Directions are taken about the FITTED centre; positions are laid out from `com`.
-            let dir_2d = |i: usize| -> Vec2 { (locs[i] - fc).normalize_or_zero() };
-            let mut new_2d: Vec<Vec2> = vec![Vec2::ZERO; n];
-            if regular {
-                let a0 = dir_2d(anchor);
-                if a0 == Vec2::ZERO { return CircleRegionResult::default(); } // anchor AT the centre
-                let offset = a0.y.atan2(a0.x);
-                // Traversal direction of the ring about the fitted centre.
-                let a1 = dir_2d((anchor + 1) % n);
-                let ccw = if a0.x * a1.y - a0.y * a1.x >= 0.0 { 1.0f32 } else { -1.0f32 };
-                for step in 0..n {
-                    let t = offset + ccw * (step as f32 / n as f32) * std::f32::consts::TAU;
-                    new_2d[(anchor + step) % n] = Vec2::new(t.cos(), t.sin()) * r;
-                }
-            } else {
-                for i in 0..n {
-                    let d = dir_2d(i);
-                    if d == Vec2::ZERO { return CircleRegionResult::default(); }
-                    new_2d[i] = d * r;
-                }
-            }
-
-            let mut boundary: Vec<(VertexId, Vec3)> = Vec::with_capacity(n);
-            for i in 0..n {
-                let dir3 = (p * new_2d[i].x + q * new_2d[i].y).normalize_or_zero();
-                // `flatten` = land in the plane. Otherwise keep the vertex's own along-normal offset.
-                let off = if flatten { 0.0 } else { (pts[i] - com).dot(normal) };
-                moves.push((ring[i], com + dir3 * r + normal * off));
-                boundary.push((ring[i], dir3));
-            }
-            fits.push(CircleLoopFit { center: com, normal, radius: r, boundary });
+            let Some(plan) = self.plan_circle_loop(ring, live, radius, flatten, regular) else {
+                return CircleRegionResult::default();
+            };
+            plans.push(plan);
         }
-        for (v, pos) in moves { self.vert_mut(v).position = pos; }
+        if plans.is_empty() { return CircleRegionResult::default(); }
 
-        // ---- relax the region INTERIOR (AZRA extension; Blender leaves it alone) -----------------
-        let mut relaxed: Vec<VertexId> = Vec::new();
-        if relax_passes > 0 {
-            // 1-ring adjacency WITHIN the region. An interior vertex has every incident face in the
-            // region, so its whole 1-ring is a region vertex => this adjacency is complete for it.
-            let mut adj: HashMap<u32, Vec<VertexId>> = HashMap::new();
-            for &f in live {
-                let ring = self.face_vertices(f);
-                for i in 0..ring.len() {
-                    let (a, b) = (ring[i], ring[(i + 1) % ring.len()]);
-                    adj.entry(a.0).or_default().push(b);
-                    adj.entry(b.0).or_default().push(a);
-                }
+        // ---- stage 2: commit ------------------------------------------------------------------
+        let mut fits: Vec<CircleLoopFit> = Vec::with_capacity(plans.len());
+        let mut on_boundary: HashSet<u32> = HashSet::new();
+        for plan in plans {
+            let mut boundary = Vec::with_capacity(plan.moves.len());
+            for (v, dir, pos) in plan.moves {
+                self.vert_mut(v).position = pos;
+                on_boundary.insert(v.0);
+                boundary.push((v, dir));
             }
-            for ns in adj.values_mut() { ns.sort_by_key(|v| v.0); ns.dedup_by_key(|v| v.0); }
-
-            let pinned: HashSet<u32> = loops.iter().flatten().map(|v| v.0).collect();
-            let mut interior: Vec<VertexId> = adj.keys().copied()
-                .filter(|v| !pinned.contains(v))
-                .map(VertexId)
-                .collect();
-            interior.sort_by_key(|v| v.0);
-
-            // Constrain to the fit plane only when there IS a single plane to constrain to.
-            let plane = if flatten && fits.len() == 1 { Some((fits[0].center, fits[0].normal)) } else { None };
-            if let Some((com, normal)) = plane {
-                // Flatten the interior too, so the whole region is planar (and the Laplacian of
-                // coplanar points then stays exactly coplanar).
-                for &v in &interior {
-                    let pos = self.vert(v).position;
-                    self.vert_mut(v).position = pos - normal * (pos - com).dot(normal);
-                }
-            }
-            for _ in 0..relax_passes {
-                // JACOBI: compute every new position from the PREVIOUS pass, then write. A
-                // Gauss-Seidel in-place update would make the result depend on iteration order.
-                let next: Vec<(VertexId, Vec3)> = interior.iter().filter_map(|&v| {
-                    let ns = adj.get(&v.0)?;
-                    if ns.is_empty() { return None; }
-                    let mut sum = Vec3::ZERO;
-                    for &nb in ns { sum += self.vert(nb).position; }
-                    let mut pos = sum / ns.len() as f32;
-                    if let Some((com, normal)) = plane { pos -= normal * (pos - com).dot(normal); }
-                    Some((v, pos))
-                }).collect();
-                for (v, pos) in next { self.vert_mut(v).position = pos; }
-            }
-            relaxed = interior;
+            fits.push(CircleLoopFit { center: plan.com, normal: plan.normal, radius: plan.radius, boundary });
         }
+
+        // ---- stage 3: optional interior relax (pinned-boundary Jacobi Laplacian) ----------------
+        let relaxed = self.relax_region_interior(live, &on_boundary, relax_passes);
 
         self.recompute_normals();
         CircleRegionResult { loops: fits, relaxed }
+    }
+
+    /// Fit + lay out ONE closed boundary loop on its circle. Pure: reads the mesh, returns the
+    /// planned vertex moves, or `None` when the loop cannot define a circle (fewer than 3 vertices,
+    /// or no usable plane).
+    ///
+    /// Independent implementation. Method: take the loop centroid `com`; get a plane normal from the
+    /// loop's Newell vector (falling back to the summed face normals of `live` when the loop is
+    /// degenerate); express the vertices in an orthonormal in-plane basis `(p, q)` about `com`;
+    /// fit a circle there with [`best_fit_circle_2d`]; each vertex's polar angle is measured about
+    /// the FITTED centre. The vertex is re-placed at `com + r (cos t p + sin t q)` (the circle is
+    /// centred on the centroid; the fitted centre only supplies the angular reference).
+    /// `regular` keeps the vertex nearest `com` at its own angle and spaces the others by `2 pi / n`
+    /// in the loop's own winding sense.
+    fn plan_circle_loop(&self, ring: &[VertexId], live: &[FaceId], radius: Option<f32>,
+                        flatten: bool, regular: bool) -> Option<LoopPlanOut> {
+        let n = ring.len();
+        if n < 3 { return None; }
+        let pos: Vec<Vec3> = ring.iter().map(|&v| self.vert(v).position).collect();
+        let com = pos.iter().copied().sum::<Vec3>() / n as f32;
+
+        let mut normal = newell_normal(&pos).normalize_or_zero();
+        if normal == Vec3::ZERO {
+            normal = live.iter().map(|&f| self.compute_face_normal(f)).sum::<Vec3>().normalize_or_zero();
+        }
+        if normal == Vec3::ZERO { return None; }
+        let p = normal.any_orthonormal_vector();
+        let q = normal.cross(p);
+
+        let local: Vec<Vec2> = pos.iter().map(|&x| { let d = x - com; Vec2::new(d.dot(p), d.dot(q)) }).collect();
+        let (fit_c, fit_r) = best_fit_circle_2d(&local);
+        let r = radius.unwrap_or(fit_r);
+
+        // Polar angle of each vertex about the fitted centre.
+        let mut ang: Vec<f32> = local.iter().map(|l| (l.y - fit_c.y).atan2(l.x - fit_c.x)).collect();
+
+        if regular {
+            // Anchor = vertex nearest the centroid (ties: lowest vertex id, for determinism).
+            let anchor = (0..n).min_by(|&a, &b| {
+                local[a].length_squared().total_cmp(&local[b].length_squared())
+                    .then(ring[a].0.cmp(&ring[b].0))
+            })?;
+            // Winding sense of the loop in the (p, q) basis: sign of its shoelace area.
+            let area2: f32 = (0..n).map(|i| local[i].perp_dot(local[(i + 1) % n])).sum();
+            let sense = if area2 < 0.0 { -1.0f32 } else { 1.0 };
+            let step = std::f32::consts::TAU / n as f32;
+            let base = ang[anchor];
+            for k in 0..n {
+                ang[(anchor + k) % n] = base + sense * step * k as f32;
+            }
+        }
+
+        let moves = (0..n).map(|i| {
+            let dir = p * ang[i].cos() + q * ang[i].sin();
+            let mut np = com + dir * r;
+            if !flatten { np += normal * (pos[i] - com).dot(normal); }
+            (ring[i], dir, np)
+        }).collect();
+        Some(LoopPlanOut { com, normal, radius: r, moves })
+    }
+
+    /// Jacobi-relax the interior vertices of a face region with the boundary pinned: each pass sets
+    /// every interior vertex to the mean of its distinct 1-ring neighbours, all read from the
+    /// previous pass (so the result is independent of iteration order). Returns the interior vertex
+    /// ids ascending, or empty when `passes == 0` or the region has no interior.
+    fn relax_region_interior(&mut self, live: &[FaceId], pinned: &std::collections::HashSet<u32>,
+                             passes: u32) -> Vec<VertexId> {
+        if passes == 0 || live.is_empty() { return Vec::new(); }
+        let mut interior: Vec<VertexId> = live.iter()
+            .flat_map(|&f| self.face_vertices(f))
+            .filter(|v| !pinned.contains(&v.0))
+            .collect();
+        interior.sort_by_key(|v| v.0);
+        interior.dedup();
+        if interior.is_empty() { return interior; }
+        let rings: Vec<Vec<VertexId>> = interior.iter().map(|&v| {
+            let mut ns: Vec<VertexId> = self.vertex_fan(v).iter().map(|&h| self.he(h).vertex).collect();
+            ns.sort_by_key(|x| x.0);
+            ns.dedup();
+            ns
+        }).collect();
+        for _ in 0..passes {
+            let next: Vec<Vec3> = rings.iter().map(|ns| {
+                ns.iter().map(|&x| self.vert(x).position).sum::<Vec3>() / ns.len().max(1) as f32
+            }).collect();
+            for (&v, np) in interior.iter().zip(next) { self.vert_mut(v).position = np; }
+        }
+        interior
     }
 
     /// Reshape a SELECTED EDGE LOOP onto a circle — Blender LoopTools **Circle** in EDGE select mode
