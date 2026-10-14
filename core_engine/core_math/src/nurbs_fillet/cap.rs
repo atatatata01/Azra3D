@@ -1,11 +1,11 @@
-//! Corner caps: spherical octant / toroidal OnSame / ruled loft (split from nurbs_fillet.rs).
+//! Corner caps: spherical octant / toroidal JoinPatch / ruled loft (split from nurbs_fillet.rs).
 
 use crate::nurbs::{ControlPoint, FaceOrigin, NurbsFace, NurbsFaceId, NurbsSurface};
 use glam::Vec3;
 
 use super::*;
 
-/// FreeCAD-style toroidal OnSame corner (equal r, orthogonal, 2+1 concavity).
+/// FreeCAD-style toroidal JoinPatch corner (equal r, orthogonal, 2+1 concavity).
 ///
 /// Oracle (boss base triad): major = 2r, minor = r, axis along the **odd** edge
 /// (unique convexity), centre on that edge's cylinder axis at height r from the
@@ -87,7 +87,7 @@ pub fn onsame_torus_frame(
     }
     let n_cx = edges_at.iter().filter(|e| e.6).count();
     if n_cx != 1 && n_cx != 2 {
-        return None; // not 2+1 OnSame
+        return None; // not 2+1 JoinPatch
     }
     let odd_convex = n_cx == 1;
     let mut odd: Option<&(usize, u8, usize, u8, Vec3, Vec3, bool)> = None;
@@ -197,13 +197,13 @@ pub(crate) fn free_end_arc_cps(
     (cps, centre)
 }
 
-/// OnSame two-edge corner (FreeCAD: BSpline join). Equal-r approximation:
+/// JoinPatch two-edge corner (FreeCAD: BSpline join). Equal-r approximation:
 /// **circular loft** between the two free-end quarter-circles at the shared vertex.
 ///
 /// Rails are the free-end arcs of each edge cylinder. Mid column CPs sit on the
 /// tube of radius `r` about the segment joining the two free-end centres
-/// (rolling-ball path A→B) — closer to FreeCAD's OnSame BSpline than a pure
-/// ruled (deg-v=1) patch, which left a mid-span hole vs OCCT.
+/// (rolling-ball path A→B) — closer to FreeCAD's JoinPatch BSpline than a pure
+/// ruled (deg-v=1) patch, which left a mid-span hole against the FreeCAD reference.
 pub fn make_onsame_ruled_corner(
     originals: &[NurbsFace],
     edges_at: &[&(usize, u8, usize, u8, Vec3, Vec3, bool)],
@@ -212,8 +212,8 @@ pub fn make_onsame_ruled_corner(
 ) -> Result<NurbsSurface, FilletError> {
     if edges_at.len() != 2 {
         return Err(FilletError::Unsupported {
-            kind: CornerKind::Two,
-            state: CornerState::OnSame,
+            kind: EdgeValence::Pair,
+            state: CornerMix::Majority,
         });
     }
     let r = r.max(1e-5);
@@ -266,7 +266,7 @@ pub fn make_onsame_ruled_corner(
         knots_v: vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
         degree_u: 2,
         degree_v: 2,
-        name: "OnSame".into(),
+        name: "JoinPatch".into(),
         mesh_cache_id: None,
         tess_tolerance: 0.25,
     };

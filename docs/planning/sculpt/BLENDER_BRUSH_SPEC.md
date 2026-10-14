@@ -1,5 +1,11 @@
 # Blender Sculpt Brush Feel Spec (oracle-derived, re-written in our own words — no GPL code)
 
+> **Licensing provenance note (2026-10-14).** The title above states the intent, but the history
+> of this file also logs that Blender source was fetched and that some formulas were ported
+> verbatim. The affected code (e.g. the stroke-overlap factor) has been replaced by an independent
+> implementation; see `docs/legal/CLEAN_ROOM_LOG.md`. Historical text is kept as written. Future
+> work must use behavioural comparison with Blender's output only, never its source.
+
 Oracle: `C:\Program Files\Blender Foundation\Blender 5.0\blender.exe` (v5.0.1; 4.5 also present).
 Sources: Blender `source/blender/editors/sculpt_paint/mesh/brushes/{grab,snake_hook,pinch,clay_strips}.cc` + `BKE_brush_curve_strength`.
 

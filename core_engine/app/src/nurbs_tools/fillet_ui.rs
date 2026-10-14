@@ -357,7 +357,7 @@ impl AzraApp {
             Err(e) => {
                 let msg = match &e {
                     FilletError::Unsupported { kind, state } => format!(
-                        "Fillet: unsupported corner {kind:?}/{state:?} (planar 90° AllSame only)"
+                        "Fillet: unsupported corner {kind:?}/{state:?} (planar 90°, uniform corners only)"
                     ),
                     FilletError::NotOrthogonal => {
                         "Fillet: need ~90° planar edges (non-ortho not yet)".into()

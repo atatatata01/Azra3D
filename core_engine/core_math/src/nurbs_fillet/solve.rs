@@ -461,7 +461,7 @@ pub fn find_orthogonal_neighbour(
 /// Max safe radius for one solid edge (face extent, setback depth, **and** edge length).
 ///
 /// Caps so a short edge / thin face cannot request r that collapses the spine or
-/// zeros a face (OCCT `Extent*Corner` / `StartsolFailure` class). For θ≈90°,
+/// zeros a face (the `NoSeedSolution` failure class). For θ≈90°,
 /// setback ≈ r, so face depth × 0.495 bounds r the same way.
 pub fn max_fillet_radius_for_edge(
     faces: &[NurbsFace],
@@ -683,7 +683,7 @@ pub fn complete_corners_in_selection(
     dedupe_solid_edges(faces, &set)
 }
 
-/// OCCT `Add(edge)` default: grow selection along a **tangent contour**.
+/// Default selection growth: extend the selection along a **tangent contour**.
 ///
 /// At each endpoint of a selected edge, add any other solid edge that:
 /// 1. shares that vertex,
@@ -786,10 +786,10 @@ pub fn apply_edges_fillet_batch_radius(
     }
 }
 
-/// Per-edge constant radii (OCCT multi-contour / `SetRadius` class).
+/// Per-edge constant radii (several contours, one radius each).
 ///
 /// `edge_radii` is `(face, edge, radius)` — duplicate solid edges are deduped (first wins).
-/// At an AllSame 3-edge vertex: **sphere only if all three radii match**; unequal → free-end
+/// At an Uniform 3-edge vertex: **sphere only if all three radii match**; unequal → free-end
 /// cylinders + soft [`FilletError::UnequalRadiusCorner`].
 pub fn apply_edges_fillet_batch_edge_radii(
     faces: &mut Vec<NurbsFace>,
@@ -818,12 +818,12 @@ pub fn apply_edges_fillet_batch_edge_radii(
     apply_edges_fillet_batch_with_radii(faces, &selected, &radii, next_id)
 }
 
-/// Linear variable-radius fillet (OCCT `Add(R1,R2,E)` class) for planar dihedrals.
+/// Linear variable-radius fillet (radius varies linearly from `r0` to `r1`) for planar dihedrals.
 ///
 /// Each edge gets a loft of two circular arcs (r0 at start endpoint of face-A edge,
 /// r1 at end). Multi-edge: same (r0,r1) per edge along that edge's orientation.
 ///
-/// **Corners (Tier 1.10):** AllSame triad with **equal** endpoint radius at the vertex
+/// **Corners (Tier 1.10):** Uniform triad with **equal** endpoint radius at the vertex
 /// → spherical octant (FreeCAD still emits Sphere when r matches at the join). Unequal
 /// endpoint radii → free ends + soft [`FilletError::UnequalRadiusCorner`].
 pub fn apply_edges_fillet_batch_linear(
@@ -911,7 +911,7 @@ pub fn apply_edges_fillet_batch_linear(
         added += 1;
     }
 
-    // AllSame triad: sphere if linear law gives equal r at the vertex on all three edges.
+    // Uniform triad: sphere if linear law gives equal r at the vertex on all three edges.
     let mut sphere_verts: Vec<(Vec3, f32)> = Vec::new();
     for p in unique_resolved_vertices(&resolved) {
         let at: Vec<_> = resolved
@@ -1036,15 +1036,15 @@ pub fn apply_edges_fillet_batch_linear(
 /// not pull in a vertical). For a full sphere corner, select all 3 concurrent edges yourself.
 ///
 /// - **1 edge** â€” cylinder + side-face Arc trims at free ends
-/// - **2 edges at a vertex** â€” 2 cylinders only (OCCT: no sphere until all 3 selected)
+/// - **2 edges at a vertex** â€” 2 cylinders only (a sphere appears only once all 3 are selected; matches the FreeCAD oracle)
 /// - **3 concurrent selected edges** â€” spherical octant + cylinders trimmed at that vertex
 /// - **N free ends** â€” Arc notch per free end (e.g. 4 verticals â†’ 4 notches on top/bottom)
 ///
-/// Not yet: curved faces (cylinder body), unequal radii, non-90Â°, `OnSame`/`OnDiff`.
+/// Not yet: curved faces (cylinder body), unequal radii, non-90Â°, `JoinPatch`/`LoneEdge`.
 ///
 /// Returns number of new faces appended (edge fillets + corners).
 
-/// Piecewise-linear radius law along each edge (OCCT `Add(UandR)` class).
+/// Piecewise-linear radius law along each edge (samples of `(u, radius)`).
 /// Samples `(t, r)` with t∈[0,1] along the edge; lofts circular arcs at each station.
 /// True if radius samples (any t-order) are **monotone in r** after sorting by t:
 /// non-decreasing or non-increasing (constant allowed). Interior peaks/valleys → false.
@@ -1075,7 +1075,7 @@ pub fn apply_edges_fillet_batch_law(
     mut next_id: u64,
 ) -> Result<FilletOutcome, FilletError> {
     if samples.len() < 2 {
-        return Err(FilletError::StartsolFailure);
+        return Err(FilletError::NoSeedSolution);
     }
     // Non-monotone OK: per-station bent rail via shrink_face_edge_law.
     let mut sorted = samples.to_vec();
@@ -1219,7 +1219,7 @@ pub fn apply_edges_fillet_batch_outcome(
 
 /// Equal- or per-edge constant radii on already-deduped solid edges.
 ///
-/// Parallel `radii[i]` applies to `selected[i]`. AllSame triad → sphere only when the
+/// Parallel `radii[i]` applies to `selected[i]`. Uniform triad → sphere only when the
 /// three edge radii match; otherwise free ends + soft [`FilletError::UnequalRadiusCorner`].
 pub fn apply_edges_fillet_batch_with_radii(
     faces: &mut Vec<NurbsFace>,
@@ -1354,7 +1354,7 @@ pub fn apply_edges_fillet_batch_with_radii(
                 } else if all_concave {
                     1u8
                 } else {
-                    2u8 // OnSame 2+1 → toroid
+                    2u8 // JoinPatch 2+1 → toroid
                 };
                 corner_verts.push((p, kind, r_min));
             }
@@ -1387,7 +1387,7 @@ pub fn apply_edges_fillet_batch_with_radii(
         .map(|f| f.material.clone())
         .unwrap_or_default();
 
-    // OnSame vertices: exactly 2 selected edges with **mixed** convexity
+    // JoinPatch vertices: exactly 2 selected edges with **mixed** convexity
     // (FreeCAD L-bracket: BSpline join). Pure-concave boss base = 2 cyl only, no patch.
     let is_onsame_vertex = |p: Vec3| {
         let at: Vec<_> = resolved
@@ -1397,7 +1397,7 @@ pub fn apply_edges_fillet_batch_with_radii(
         at.len() == 2 && at.iter().any(|e| e.6) && at.iter().any(|e| !e.6)
     };
 
-    // One cylinder per edge — trim at sphere triad ends and OnSame join ends.
+    // One cylinder per edge — trim at sphere triad ends and JoinPatch join ends.
     for &(fa, ea, fb, eb, a0, a1, convex, r) in &resolved {
         let ts = if (convex && is_patch_vertex(a0)) || is_onsame_vertex(a0) {
             if is_patch_vertex(a0) {
@@ -1434,10 +1434,10 @@ pub fn apply_edges_fillet_batch_with_radii(
         }
         // T3 free-end Arc notches on side faces:
         // - n_sel==1: classic single-edge free end (always)
-        // - n_sel==2 pure-convex TwoCorner (not OnSame, not triad): FreeCAD keeps
+        // - n_sel==2 pure-convex TwoCorner (not JoinPatch, not triad): FreeCAD keeps
         //   0 spheres / 2 cylinders — both free ends STILL need side-face Arc notches
         //   or the third face keeps a sharp corner → gap/gouge (owner Plasticity shot).
-        // Skip triad sphere ends and OnSame loft ends (their own join geometry).
+        // Skip triad sphere ends and JoinPatch loft ends (their own join geometry).
         for endpoint in [a0, a1] {
             if is_patch_vertex(endpoint) || is_onsame_vertex(endpoint) {
                 continue;
@@ -1481,7 +1481,7 @@ pub fn apply_edges_fillet_batch_with_radii(
         added += 1;
     }
 
-    // Corners: AllSame sphere (convex/concave) or OnSame toroid (2+1 concavity).
+    // Corners: Uniform sphere (convex/concave) or JoinPatch toroid (2+1 concavity).
     for &(vertex, kind, cr) in &corner_verts {
         let resolved7 = resolved_strip_r(&resolved);
         let (face_ids, normals) = match solid_orthogonal_triad_at(&originals, vertex) {
@@ -1497,7 +1497,7 @@ pub fn apply_edges_fillet_batch_with_radii(
             originals[face_ids[2]].id,
         ];
         let corner_surf = if kind == 2 {
-            // OnSame toroid — FreeCAD major=2r minor=r
+            // JoinPatch toroid — FreeCAD major=2r minor=r
             let at3: Vec<_> = resolved7
                 .iter()
                 .filter(|e| {
@@ -1512,8 +1512,8 @@ pub fn apply_edges_fillet_batch_with_radii(
                 faulty_vertices.push((
                     vertex,
                     FilletError::Unsupported {
-                        kind: CornerKind::Three,
-                        state: CornerState::OnSame,
+                        kind: EdgeValence::Triple,
+                        state: CornerMix::Majority,
                     },
                 ));
                 continue;
@@ -1524,8 +1524,8 @@ pub fn apply_edges_fillet_batch_with_radii(
                     faulty_vertices.push((
                         vertex,
                         FilletError::Unsupported {
-                            kind: CornerKind::Three,
-                            state: CornerState::OnSame,
+                            kind: EdgeValence::Triple,
+                            state: CornerMix::Majority,
                         },
                     ));
                     continue;
@@ -1563,7 +1563,7 @@ pub fn apply_edges_fillet_batch_with_radii(
         added += 1;
     }
 
-    // OnSame mixed-convexity two-edge vertices only (FreeCAD: +BSpline).
+    // JoinPatch mixed-convexity two-edge vertices only (FreeCAD: +BSpline).
     // Pure-convex TwoCorner → Steinmetz (0.5). Pure-concave boss base → 2 cyl only.
     // Join uses max of the two edge radii when equal; unequal → soft fault, no patch.
     let resolved7 = resolved_strip_r(&resolved);
@@ -1610,7 +1610,7 @@ pub fn apply_edges_fillet_batch_with_radii(
                     originals[at[0].0].id,
                     originals[at[1].0].id,
                 ];
-                // Reuse Fillet origin (2-face attribution); name marks the OnSame join.
+                // Reuse Fillet origin (2-face attribution); name marks the JoinPatch join.
                 let mut cf = NurbsFace::new(NurbsFaceId(next_id), patch).with_origin(
                     FaceOrigin::Fillet {
                         radius: r_join,
@@ -1626,8 +1626,8 @@ pub fn apply_edges_fillet_batch_with_radii(
                 faulty_vertices.push((
                     p,
                     FilletError::Unsupported {
-                        kind: CornerKind::Two,
-                        state: CornerState::OnSame,
+                        kind: EdgeValence::Pair,
+                        state: CornerMix::Majority,
                     },
                 ));
                 let _ = e;
@@ -1659,7 +1659,7 @@ pub fn apply_edges_fillet_batch_with_radii(
 }
 
 /// True if the shared edge is a **convex exterior** edge (solid behind both outward normals).
-/// False for concave re-entrant edges (L-bracket inner) where FreeCAD uses BSpline OnSame blends.
+/// False for concave re-entrant edges (L-bracket inner) where FreeCAD uses BSpline JoinPatch blends.
 pub fn edge_is_convex_exterior(sa: &NurbsSurface, sb: &NurbsSurface) -> bool {
     let Ok(na) = face_outward_normal(sa) else {
         return false;
@@ -1677,12 +1677,12 @@ pub fn edge_is_convex_exterior(sa: &NurbsSurface, sb: &NurbsSurface) -> bool {
     na.dot(cb - ca) < 0.15 && nb.dot(ca - cb) < 0.15
 }
 
-/// Concavity of one solid edge (two faces). Used for `CornerState` dispatch.
+/// Concavity of one solid edge (two faces). Used for `CornerMix` dispatch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EdgeConcavity {
-    /// Exterior convex (cube outer edge) — planar AllSame path.
+    /// Exterior convex (cube outer edge) — planar Uniform path.
     Convex,
-    /// Re-entrant concave (L-bracket inner) — needs OnSame/OnDiff blend.
+    /// Re-entrant concave (L-bracket inner) — needs JoinPatch/LoneEdge blend.
     Concave,
     /// Parallel / non-dihedral / non-planar pair.
     Invalid,
@@ -1716,131 +1716,129 @@ pub fn edge_concavity(faces: &[NurbsFace], fa: usize, ea: u8) -> EdgeConcavity {
     }
 }
 
-/// OCCT-style **vertex histogram** of solid-edge concavity (not edge-relative).
-///
-/// - **AllSame**: all counted edges Convex or all Concave
-/// - **OnSame**: two match, one differs (2+1 at a break-point)
-/// - **OnDiff**: no majority / invalid (rare with a clean 3-edge triad)
-///
-/// Prefer [`classify_fillet_end_state`] when asking how a **specific filleted edge**
-/// ends at the vertex (true OCCT `ChFiDS_OnSame` / `OnDiff` semantics).
-pub fn classify_corner_state_at_vertex(faces: &[NurbsFace], vertex: Vec3) -> CornerState {
-    let at = edges_at_vertex(faces, vertex);
-    if at.len() < 2 {
-        return CornerState::FreeBoundary;
-    }
-    let mut convex = 0u8;
-    let mut concave = 0u8;
-    for &(fa, ea) in &at {
+/// How many valid (convex or concave) solid edges meet at `vertex`, split by sign.
+/// Returns `(convex, concave)`; edges whose dihedral is invalid are ignored.
+fn vertex_sign_counts(faces: &[NurbsFace], vertex: Vec3) -> (usize, usize) {
+    let mut convex = 0;
+    let mut concave = 0;
+    for (fa, ea) in edges_at_vertex(faces, vertex) {
         match edge_concavity(faces, fa, ea) {
             EdgeConcavity::Convex => convex += 1,
             EdgeConcavity::Concave => concave += 1,
             EdgeConcavity::Invalid => {}
         }
     }
-    let n = convex + concave;
-    if n == 0 {
-        return CornerState::OnDiff;
-    }
-    if concave == 0 {
-        return CornerState::AllSame; // all convex (or only convex counted)
-    }
-    if convex == 0 {
-        return CornerState::AllSame; // all concave — still AllSame sign, other solver
-    }
-    // Mixed: classic OnSame is 2-of-3 same; otherwise OnDiff
-    if convex == 2 || concave == 2 {
-        CornerState::OnSame
+    (convex, concave)
+}
+
+/// Vertex-level sign mix of the solid edges meeting at `vertex` (independent of any chosen edge).
+///
+/// * fewer than three valid edges -> [`CornerMix::Open`];
+/// * every valid edge has the same sign (all convex like a cube corner, or all concave) ->
+///   [`CornerMix::Uniform`];
+/// * both signs present -> [`CornerMix::Majority`] (the vertex has a dominant sign group; use
+///   [`classify_fillet_end_state`] to learn whether a particular edge is in it or is the odd one).
+pub fn classify_corner_state_at_vertex(faces: &[NurbsFace], vertex: Vec3) -> CornerMix {
+    let (convex, concave) = vertex_sign_counts(faces, vertex);
+    if convex + concave < 3 {
+        CornerMix::Open
+    } else if convex == 0 || concave == 0 {
+        CornerMix::Uniform
     } else {
-        CornerState::OnDiff
+        CornerMix::Majority
     }
 }
 
-/// OCCT `ChFiDS_OnSame` / `OnDiff` for a **filleted** edge at a solid vertex.
+/// Sign mix at `vertex` as seen from one filleted edge `(fa, ea)`, comparing that edge's sign with
+/// the other valid edges meeting there:
 ///
-/// Source comments (verbatim intent):
-/// - **OnSame**: filleted edge differs from one neighbour and matches the third
-/// - **OnDiff**: filleted edge differs from **both** other edges
-/// - **AllSame**: filleted edge matches every other counted edge at the vertex
-///
-/// FreeCAD L-bracket at `(0.3,0,0.3)` (2 convex + 1 concave):
-/// - fillet the **concave** alone → OnDiff → 1 Cylinder (free ends, no join patch)
-/// - fillet concave + one convex → OnSame → 2 cyl + BSpline
-/// - fillet both convex (skip concave) → each end AllSame-ish pair → 2 cyl, no BSpline
-/// - fillet all three → 2+1 toroid (batch OnSame triad leaf)
+/// * the edge itself has no valid dihedral -> [`CornerMix::Minority`] (it cannot join anything);
+/// * fewer than two other valid edges -> [`CornerMix::Open`];
+/// * every other edge shares its sign -> [`CornerMix::Uniform`];
+/// * no other edge shares its sign (it is the lone odd edge) -> [`CornerMix::Minority`];
+/// * otherwise (it shares its sign with some, not all, of the rest) -> [`CornerMix::Majority`].
 pub fn classify_fillet_end_state(
     faces: &[NurbsFace],
     vertex: Vec3,
     fa: usize,
     ea: u8,
-) -> CornerState {
-    let self_c = edge_concavity(faces, fa, ea);
-    if self_c == EdgeConcavity::Invalid {
-        return CornerState::OnDiff;
+) -> CornerMix {
+    let own = edge_concavity(faces, fa, ea);
+    if own == EdgeConcavity::Invalid {
+        return CornerMix::Minority;
     }
-    let self_cx = self_c == EdgeConcavity::Convex;
-    let at = edges_at_vertex(faces, vertex);
-    if at.len() < 2 {
-        return CornerState::FreeBoundary;
-    }
-    let mut others_cx: Vec<bool> = Vec::new();
-    for &(of, oe) in &at {
-        if edge_in_set(faces, &[(fa, ea)], of, oe) {
-            continue;
+    let own_cx = own == EdgeConcavity::Convex;
+    let self_mid = face_edge_endpoints(faces[fa].surface.as_ref(), ea)
+        .map(|(a, b)| (a + b) * 0.5)
+        .ok();
+    let mut same = 0usize;
+    let mut differ = 0usize;
+    for (oa, oe) in edges_at_vertex(faces, vertex) {
+        // Skip the filleted edge itself (it is deduplicated by midpoint, so match on that).
+        if let (Some(m), Ok((p, q))) = (self_mid, face_edge_endpoints(faces[oa].surface.as_ref(), oe)) {
+            if (((p + q) * 0.5) - m).length_squared() < 1e-8 {
+                continue;
+            }
         }
-        match edge_concavity(faces, of, oe) {
-            EdgeConcavity::Convex => others_cx.push(true),
-            EdgeConcavity::Concave => others_cx.push(false),
+        match edge_concavity(faces, oa, oe) {
+            EdgeConcavity::Convex => {
+                if own_cx { same += 1 } else { differ += 1 }
+            }
+            EdgeConcavity::Concave => {
+                if own_cx { differ += 1 } else { same += 1 }
+            }
             EdgeConcavity::Invalid => {}
         }
     }
-    if others_cx.is_empty() {
-        return CornerState::FreeBoundary;
-    }
-    let n_match = others_cx.iter().filter(|&&c| c == self_cx).count();
-    let n_diff = others_cx.len() - n_match;
-    if n_diff == 0 {
-        CornerState::AllSame
-    } else if n_match == 0 {
-        // Differs from every other edge at the vertex (classic OnDiff).
-        CornerState::OnDiff
+    if same + differ < 2 {
+        CornerMix::Open
+    } else if differ == 0 {
+        CornerMix::Uniform
+    } else if same == 0 {
+        CornerMix::Minority
     } else {
-        // Matches at least one and differs from at least one (classic OnSame).
-        CornerState::OnSame
+        CornerMix::Majority
+    }
+}
+
+/// Edge-count class from the number of solid edges meeting at a vertex.
+fn edge_valence_class(n: usize) -> EdgeValence {
+    match n {
+        0 => EdgeValence::Degenerate,
+        1 => EdgeValence::Single,
+        2 => EdgeValence::Pair,
+        3 => EdgeValence::Triple,
+        n => EdgeValence::Many(n.min(u8::MAX as usize) as u8),
     }
 }
 
 /// Map a rejected non-convex edge into the right `Unsupported` leaf (never invent a surface).
+///
+/// Looks at both ends of the edge; the first end where the edge meets a mixed-sign neighbourhood
+/// supplies the edge-count class and the sign mix. If neither end is mixed, the edge itself is the
+/// problem and the leaf reports a single edge with an undetermined mix.
 pub fn unsupported_for_non_convex_edge(
     faces: &[NurbsFace],
     fa: usize,
     ea: u8,
 ) -> FilletError {
-    let Ok((a0, a1)) = face_edge_endpoints(faces[fa].surface.as_ref(), ea) else {
-        return FilletError::Unsupported {
-            kind: CornerKind::One,
-            state: CornerState::OnDiff,
-        };
-    };
-    // Prefer **edge-relative** end state (OnSame vs OnDiff) at either endpoint.
-    for v in [a0, a1] {
-        let at = edges_at_vertex(faces, v);
-        if at.len() >= 2 {
-            let state = classify_fillet_end_state(faces, v, fa, ea);
-            if state == CornerState::OnSame || state == CornerState::OnDiff {
-                let kind = match at.len() {
-                    1 => CornerKind::One,
-                    2 => CornerKind::Two,
-                    3 => CornerKind::Three,
-                    n => CornerKind::MoreThan(n as u8),
+    let ends = faces
+        .get(fa)
+        .and_then(|f| face_edge_endpoints(f.surface.as_ref(), ea).ok());
+    if let Some((p0, p1)) = ends {
+        for v in [p0, p1] {
+            let mix = classify_fillet_end_state(faces, v, fa, ea);
+            if matches!(mix, CornerMix::Majority | CornerMix::Minority) {
+                return FilletError::Unsupported {
+                    kind: edge_valence_class(edges_at_vertex(faces, v).len()),
+                    state: mix,
                 };
-                return FilletError::Unsupported { kind, state };
             }
         }
     }
     FilletError::Unsupported {
-        kind: CornerKind::One,
-        state: CornerState::OnSame, // single concave edge → OnSame class (L-bracket)
+        kind: EdgeValence::Single,
+        state: CornerMix::Undetermined,
     }
 }
 

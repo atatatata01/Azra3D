@@ -1,29 +1,27 @@
-//! Edge-loop selection — a PURE query over the public half-edge API (`half_edge.rs` stays frozen).
+//! Edge-loop selection — a PURE query over the public half-edge API.
 //!
-//! Clean-room port of Blender's `bmw_EdgeLoopWalker` (`bmesh_walkers_impl.cc`), verified against the
-//! source. The frozen `HalfEdgeMesh::select_edge_loop` is a quad-only one-directional walk that returns
-//! ~2 edges on a cylinder rim; this is Blender's real edge loop.
-//!
-//! **Blender decides the loop CLASS once, from the SEED edge** (not per-vertex), then walks with it fixed:
-//!   - `f_hub` (an n-gon "hub" face): the seed edge is interior (2 faces), an endpoint has exactly
-//!     valence==3 AND face_count==3, and the LARGER of the seed's two faces has >4 sides → walk around that
-//!     n-gon's boundary (a cylinder cap rim). Deciding this per-vertex instead would let a stray n-gon
-//!     hijack an ordinary quad loop (Blender's own warning), hence the seed latch.
-//!   - `is_boundary` (seed edge has 1 face): follow the boundary rim.
-//!   - otherwise (interior): valence-4 "opposite edge" rule (the edge not sharing a face with the current).
-//! Stops at a pole / wrong valence / already-visited / loop closure.
+//! Independent implementation from the topological definition of an edge loop: starting at a seed
+//! edge, keep crossing vertices along the edge that continues "straight through" them.
+//!   - valence 2: the only other edge;
+//!   - valence 4 (interior): the edge that shares no face with the incoming one;
+//!   - valence 3 on the rim of a large n-gon (a cap): the next edge of that n-gon (the cap is
+//!     latched once, from the seed, so a stray n-gon cannot redirect an ordinary quad loop);
+//!   - seed on a boundary: follow the boundary rim.
+//! The walk stops at poles, wrong valences, already-visited edges, and when the loop closes.
+//! Results are compared against Blender's loop select as a behavioural oracle only.
 
 use crate::half_edge::{HalfEdgeMesh, HalfEdgeId, FaceId, NO_TWIN, NO_FACE};
 use std::collections::HashSet;
 
-/// Number of distinct faces incident to vertex `v` (Blender `BM_vert_face_count`).
+/// Number of incident faces around vertex `v`, counting each distinct face once.
 fn vert_face_count(mesh: &HalfEdgeMesh, v: u32) -> usize {
     let mut faces: HashSet<u32> = HashSet::new();
-    for i in 0..mesh.half_edges.len() as u32 {
-        let h = HalfEdgeId(i);
-        let f = mesh.he(h).face;
-        if f == NO_FACE { continue; }
-        if mesh.he_source(h).0 == v || mesh.he(h).vertex.0 == v { faces.insert(f.0); }
+    for h in loop_neighbors(mesh, crate::half_edge::VertexId(v)) {
+        for f in edge_faces(mesh, h) {
+            if f != NO_FACE {
+                faces.insert(f.0);
+            }
+        }
     }
     faces.len()
 }
@@ -33,22 +31,26 @@ fn valence(mesh: &HalfEdgeMesh, v: u32) -> usize {
     mesh.vertex_fan(crate::half_edge::VertexId(v)).len()
 }
 
-/// Decide the n-gon HUB face at the seed (Blender `bmw_EdgeLoopWalker_begin`, lines 990–1018 + bug #84906):
-/// interior seed edge, an endpoint with valence==3 && face_count==3, larger adjacent face has >4 sides.
+/// Cap-face latch for a seed edge. A seed on the rim of a large polygon (the polygon has more than
+/// four sides, the edge is interior, and at least one end is a closed valence-3 corner) walks that
+/// polygon's boundary; any other seed gets no latch. Fixing this per seed (never per vertex) stops a
+/// stray n-gon beside an ordinary quad loop from redirecting it.
 fn seed_hub(mesh: &HalfEdgeMesh, start: HalfEdgeId) -> Option<FaceId> {
-    let tw = mesh.he(start).twin;
-    if tw == NO_TWIN { return None; } // boundary edge → not a hub
-    let s = mesh.he_source(start).0;
-    let d = mesh.he(start).vertex.0;
-    let endpoint_ok = |v: u32| valence(mesh, v) == 3 && vert_face_count(mesh, v) == 3;
-    if !(endpoint_ok(s) || endpoint_ok(d)) { return None; }
-    let fa = mesh.he(start).face;
-    let fb = mesh.he(tw).face;
-    let la = if fa != NO_FACE { mesh.face_half_edges(fa).len() } else { 0 };
-    let lb = if fb != NO_FACE { mesh.face_half_edges(fb).len() } else { 0 };
-    let (fbest, lbest) = if la >= lb { (fa, la) } else { (fb, lb) };
-    if lbest > 4 && fbest != NO_FACE { Some(fbest) } else { None }
+    let [fa, fb] = edge_faces(mesh, start);
+    if fa == NO_FACE || fb == NO_FACE {
+        return None;
+    }
+    let sides = |f: FaceId| mesh.face_half_edges(f).len();
+    let big = if sides(fa) >= sides(fb) { fa } else { fb };
+    if sides(big) <= 4 {
+        return None;
+    }
+    let closed_corner = |v: u32| valence(mesh, v) == 3 && vert_face_count(mesh, v) == 3;
+    let a = mesh.he_source(start).0;
+    let b = mesh.he(start).vertex.0;
+    (closed_corner(a) || closed_corner(b)).then_some(big)
 }
+
 
 /// MESHmachine LSelect / Loop Select tool parameters (see machin3.io LSelect + Select).
 ///
@@ -185,7 +187,7 @@ fn undirected_key(mesh: &HalfEdgeMesh, h: HalfEdgeId) -> u32 {
 /// Select the edge LOOP through `start` (both directions). Returns representative half-edge ids, one per
 /// undirected edge, including `start`.
 ///
-/// **Blender native** (topology first, straightest fallback at ~78°). For MESHmachine-style
+/// **Topology-first** (valence rules first, straightest fallback at ~78°). For MESHmachine-style
 /// Min Angle / Steps control use [`edge_loop_with_params`] or [`edge_loop_lselect`].
 ///
 /// At poles / non-valence-4 junctions (bevel corners, hard-surface T-junctions), continues along
@@ -231,11 +233,11 @@ pub fn edge_loop(mesh: &HalfEdgeMesh, start: HalfEdgeId) -> Vec<HalfEdgeId> {
     result
 }
 
-/// Blender-class topological loop + MESHmachine LSelect angle/step limits.
+/// Topological loop + MESHmachine LSelect angle/step limits.
 ///
 /// Topology step is preferred when it continues within `min_angle_deg` of straight; otherwise
 /// (or when topology stops) the angle-based straightest candidate is used. Hard-surface /
-/// non-all-quad meshes match MeshMachine better than pure Blender native.
+/// non-all-quad meshes match MeshMachine better than the pure topological walk.
 ///
 /// Prefer this for **Alt+click** loop select.
 pub fn edge_loop_with_params(
@@ -249,7 +251,7 @@ pub fn edge_loop_with_params(
     let key = |h: HalfEdgeId| undirected_key(mesh, h);
     let is_boundary = mesh.he(start).twin == NO_TWIN;
     let f_hub = seed_hub(mesh, start);
-    // Slightly more permissive than min_angle for pure topology: accept Blender's opposite-edge
+    // Slightly more permissive than min_angle for pure topology: accept the opposite-edge
     // step up to max(min_angle, 50°) so mild curved belts still complete, then fall back to
     // angle walk. MeshMachine LSelect alone uses pure angle (see edge_loop_lselect).
     let topo_floor = min_angle_cos(params.min_angle_deg.max(50.0));
@@ -321,7 +323,7 @@ fn turn_dot(mesh: &HalfEdgeMesh, cur: HalfEdgeId, nxt: HalfEdgeId) -> f32 {
 }
 
 /// MESHmachine **LSelect**: pure angle-based chain walk (no valence-4 requirement).
-/// Better than Blender native on non-all-quad hard-surface meshes.
+/// Better than the pure topological walk on non-all-quad hard-surface meshes.
 ///
 /// Walks both directions from `start`. At each vertex picks the unvisited neighbour whose
 /// direction is closest to the incoming rail and within `min_angle_deg` of straight.
@@ -609,7 +611,7 @@ pub fn edge_loop_directed_with_params(
                 break;
             }
         }
-        // Standard Blender step first — the direction hint only decides where Blender stops.
+        // Standard topological step first — the direction hint only decides where it stops.
         let step = next_loop_edge(mesh, cur, is_boundary, hub);
         let nxt = match step {
             Some((n, h)) if turn_dot(mesh, cur, n) >= min_cos => {
@@ -671,99 +673,94 @@ fn loop_neighbors(mesh: &HalfEdgeMesh, v: crate::half_edge::VertexId) -> Vec<Hal
     }
 }
 
-/// Given `cur` pointing INTO vertex `v`, the next loop half-edge OUT of `v` under the seed-latched class
-/// PLUS the hub face to carry into the next step, or `None` at a pole / ambiguous corner.
+/// Faces on either side of the undirected edge `h` (a missing side is `NO_FACE`).
+#[inline]
+fn edge_faces(mesh: &HalfEdgeMesh, h: HalfEdgeId) -> [FaceId; 2] {
+    let t = mesh.he(h).twin;
+    let other = if t == NO_TWIN { NO_FACE } else { mesh.he(t).face };
+    [mesh.he(h).face, other]
+}
+
+#[inline]
+fn edge_touches_face(mesh: &HalfEdgeMesh, h: HalfEdgeId, f: FaceId) -> bool {
+    edge_faces(mesh, h).contains(&f)
+}
+
+#[inline]
+fn edges_share_face(mesh: &HalfEdgeMesh, a: HalfEdgeId, b: HalfEdgeId) -> bool {
+    let fb = edge_faces(mesh, b);
+    edge_faces(mesh, a).iter().any(|f| *f != NO_FACE && fb.contains(f))
+}
+
+/// Edge-loop step. `cur` arrives INTO its head vertex `v`; returns the half-edge leaving `v` that
+/// continues the loop, plus the cap-face latch to carry forward. The rule depends on the loop class
+/// fixed at the seed:
+///
+/// * boundary class: the single boundary half-edge leaving `v`;
+/// * valence 2: the only other edge;
+/// * valence 4 with every incident edge interior: the edge sharing no face with `cur` (the edge
+///   "across" the vertex). When a cap face is latched, the latch moves to the face that holds both
+///   the exit edge and the cap's second edge at `v` (a chord splitting the cap);
+/// * valence 3 with a latched cap face: the other edge of that face at `v` (walk the cap's rim);
+/// * anything else (poles, non-manifold, boundary vertices on an interior walk): `None`.
 fn next_loop_edge(mesh: &HalfEdgeMesh, cur: HalfEdgeId, is_boundary: bool, f_hub: Option<FaceId>)
     -> Option<(HalfEdgeId, Option<FaceId>)>
 {
     let v = mesh.he(cur).vertex;
+    let cur_key = undirected_key(mesh, cur);
+    // Outgoing edges plus boundary half-edges that arrive at `v` (they have no outgoing twin, so the
+    // outgoing scan alone would miss them and under-count the vertex degree).
+    let mut around = loop_neighbors(mesh, v);
+    around.extend((0..mesh.half_edges.len() as u32).map(HalfEdgeId).filter(|&h| {
+        let he = mesh.he(h);
+        he.vertex == v && he.twin == NO_TWIN && he.face != NO_FACE
+    }));
+    let others: Vec<HalfEdgeId> =
+        around.iter().copied().filter(|&h| undirected_key(mesh, h) != cur_key).collect();
 
-    // (1) N-GON HUB (cap rim): at a clean valence-3 rim vertex, step to the next edge around the hub
-    // n-gon (Blender step lines 1055–1081, #84906). At a valence-4 rim vertex — where a chord/segment
-    // was added across the cap, splitting the n-gon into two faces — Blender STOPS (loop selects only
-    // one side of the split). We instead FALL THROUGH to the valence-4 "opposite edge" rule (3), which
-    // returns the next RIM edge: the chord shares one of `cur`'s cap faces and the wall edge shares
-    // `cur`'s wall face, so only the continuing rim edge shares neither. The rim loop thus continues
-    // all the way around a split cap.
-    if let Some(hub) = f_hub {
-        if valence(mesh, v.0) == 3 {
-            for &h in &mesh.face_half_edges(hub) {
-                if mesh.he(h).vertex == v {
-                    let nxt = mesh.he(h).next;
-                    if mesh.he(nxt).twin == NO_TWIN { return None; } // don't step onto a boundary edge
-                    return Some((nxt, f_hub)); // still on the same hub face
-                }
-            }
-            return None;
-        }
-        // valence != 3 → not a clean hub step; fall through to the valence-4 rule to cross a split vertex.
+    if is_boundary {
+        let mut rim = others.iter().copied().filter(|&h| mesh.he(h).twin == NO_TWIN && mesh.he_source(h) == v);
+        return match (rim.next(), rim.next()) {
+            (Some(h), None) => Some((h, None)),
+            _ => None,
+        };
     }
 
-    // (2) BOUNDARY rim: the other boundary edge out of `v` (only when `cur` is itself a boundary edge —
-    // a mid-walk interior edge must not hijack the boundary rule).
-    if is_boundary && mesh.he(cur).twin == NO_TWIN {
-        for &og in &loop_neighbors(mesh, v) {
-            if og == cur { continue; }
-            if mesh.he(og).twin == NO_TWIN && mesh.he(og).face != NO_FACE { return Some((og, f_hub)); }
-        }
-        return None;
-    }
-
-    let tw = mesh.he(cur).twin;
-    let fa = mesh.he(cur).face;
-    let fb = if tw != NO_TWIN { mesh.he(tw).face } else { NO_FACE };
-    let fan = loop_neighbors(mesh, v);
-
-    // (2.5) PATH / KNIFE-CUT vertex — true valence-2: only the in-edge and out-edge touch `v`.
-    // Mid-face densify verts on a knife slice are valence-2 (two coplanar n-gons share the cut
-    // path). The valence-4 opposite-edge rule never fires there, so double-click saw a
-    // "broken loop" (owner Desktop 22.fl4, 2026-08-05).
-    //
-    // Gate: neighbour count == 2 AND both edges are INTERIOR (have twins). A boundary
-    // valence-2 chain is the boundary class (2); a radial fan that undercounts a valence-3
-    // pole often pairs the path with one boundary outer — requiring twins blocks that leak.
-    if fan.len() == 2 && tw != NO_TWIN {
-        for &og in &fan {
-            if og == tw {
-                continue; // reverse of `cur`
-            }
-            if mesh.he(og).twin == NO_TWIN {
-                continue; // don't step onto a boundary edge from an interior path
-            }
-            return Some((og, f_hub));
-        }
-    }
-
-    // (3) INTERIOR valence-4 "opposite edge" rule: the outgoing edge at `v` NOT sharing a face with `cur`.
-    // Also the fall-through for a split-cap valence-4 rim vertex (see (1)).
-    if fan.len() == 4 {
-        for &og in &fan {
-            if tw != NO_TWIN && og == tw { continue; } // `cur`'s own edge (its reverse)
-            let of = mesh.he(og).face;
-            let ot = mesh.he(og).twin;
-            let oft = if ot != NO_TWIN { mesh.he(ot).face } else { NO_FACE };
-            let shares = (fa != NO_FACE && (of == fa || oft == fa)) || (fb != NO_FACE && (of == fb || oft == fb));
-            if !shares {
-                // Crossing a split cap: hand the FAR-SIDE cap face to the next step. The chord is the
-                // edge of the OLD hub at `v` other than `cur`; its opposite face is the new cap piece
-                // (which is where `og` lives). Non-hub interior loops keep hub = None.
-                let mut new_hub = f_hub;
-                if let Some(old) = f_hub {
-                    for &e in &fan {
-                        if e == cur || (tw != NO_TWIN && e == tw) { continue; }
-                        let ef = mesh.he(e).face;
-                        let etw = mesh.he(e).twin;
-                        let etf = if etw != NO_TWIN { mesh.he(etw).face } else { NO_FACE };
-                        if ef == old { new_hub = Some(etf); break; }
-                        if etf == old { new_hub = Some(ef); break; }
-                    }
-                }
-                return Some((og, new_hub));
+    // Degree at v counts `cur` itself (a boundary `cur` is absent from the outgoing list).
+    let degree = others.len() + 1;
+    let interior = mesh.he(cur).twin != NO_TWIN && others.iter().all(|&h| mesh.he(h).twin != NO_TWIN);
+    match degree {
+        2 => Some((others[0], f_hub)),
+        3 if interior => {
+            let cap = f_hub?;
+            let mut on_cap = others.iter().copied().filter(|&h| edge_touches_face(mesh, h, cap));
+            match (on_cap.next(), on_cap.next()) {
+                (Some(h), None) => Some((h, Some(cap))),
+                _ => None,
             }
         }
+        4 if interior => {
+            let mut across = others.iter().copied().filter(|&h| !edges_share_face(mesh, cur, h));
+            let exit = match (across.next(), across.next()) {
+                (Some(h), None) => h,
+                _ => return None,
+            };
+            let next_hub = f_hub.and_then(|cap| {
+                let chord = others
+                    .iter()
+                    .copied()
+                    .find(|&h| h != exit && undirected_key(mesh, h) != cur_key && edge_touches_face(mesh, h, cap))?;
+                let exit_faces = edge_faces(mesh, exit);
+                edge_faces(mesh, chord)
+                    .into_iter()
+                    .find(|&f| f != cap && f != NO_FACE && exit_faces.contains(&f))
+            });
+            Some((exit, next_hub))
+        }
+        _ => None,
     }
-    None // pole / ambiguous → stop
 }
+
 
 // ── Face loop (Blender Alt-click / Shift+double-click face mode) ─────────────
 

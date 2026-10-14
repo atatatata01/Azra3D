@@ -645,14 +645,14 @@
     fn unsupported_corner_is_expressible() {
         // Guard: unhandled (kind, state) must be a first-class error, not a silent octant.
         let e = FilletError::Unsupported {
-            kind: CornerKind::Two,
-            state: CornerState::OnDiff,
+            kind: EdgeValence::Pair,
+            state: CornerMix::Minority,
         };
         assert!(matches!(
             e,
             FilletError::Unsupported {
-                kind: CornerKind::Two,
-                state: CornerState::OnDiff
+                kind: EdgeValence::Pair,
+                state: CornerMix::Minority
             }
         ));
     }
@@ -679,7 +679,7 @@
     }
 
     /// Minimal L-bracket re-entrant: two planes meeting at a concave dihedral
-    /// (FreeCAD OnSame class — BSpline blend). AZRA must **refuse**, not invent a cylinder.
+    /// (FreeCAD JoinPatch class — BSpline blend). AZRA must **refuse**, not invent a cylinder.
     fn lbracket_reentrant_faces() -> (Vec<NurbsFace>, usize, u8) {
         use crate::nurbs::NurbsFaceId;
         // Horizontal shelf top (z = 0.3, normal +Z): dU=+X, dV=+Y
@@ -851,7 +851,7 @@
     #[test]
     fn boss_two_concave_edges_no_onsame_patch() {
         // FreeCAD boss-on-plate two base edges: 2 Cylinder, 0 BSpline.
-        // Pure-concave two-edge must not emit an OnSame ruled patch.
+        // Pure-concave two-edge must not emit an JoinPatch ruled patch.
         use crate::nurbs::NurbsFaceId;
         // Minimal re-entrant step: plate top z=0.2 + two boss walls meeting at (0.5,0.5,0.2)
         // Plate top (n=+Z) for x,y in [0,2]
@@ -926,9 +926,9 @@
         if edges.len() >= 2 {
             let pair = [edges[0], edges[1]];
             apply_edges_fillet_batch(&mut faces, &pair, 0.08, 100).expect("boss batch");
-            let n_onsame = faces.iter().filter(|f| f.surface.name == "OnSame").count();
+            let n_onsame = faces.iter().filter(|f| f.surface.name == "JoinPatch").count();
             let n_cyl = faces.iter().filter(|f| f.surface.name == "Fillet").count();
-            assert_eq!(n_onsame, 0, "pure-concave boss must not emit OnSame patch");
+            assert_eq!(n_onsame, 0, "pure-concave boss must not emit JoinPatch patch");
             assert_eq!(n_cyl, 2, "expected 2 cylinders, got {n_cyl}");
         } else {
             // Geometry discovery failed — still assert classification helper
@@ -1033,7 +1033,7 @@
 
     #[test]
     fn onsame_ruled_corner_builds_for_mixed_arcs() {
-        // Two free-end arcs at a vertex → circular-loft OnSame patch has finite area.
+        // Two free-end arcs at a vertex → circular-loft JoinPatch patch has finite area.
         let v = Vec3::new(0.3, 0.0, 0.3);
         let r = 0.12_f32;
         // Concave re-entrant (+X,+Z) and convex top/front (+Z,−Y)
@@ -1126,7 +1126,7 @@
             }
             if let Some(sv) = shared {
                 let patch = make_onsame_ruled_corner(&faces, &at, sv, r).expect("onsame");
-                assert_eq!(patch.name, "OnSame");
+                assert_eq!(patch.name, "JoinPatch");
                 assert_eq!(patch.degree_v, 2, "circular loft is deg-v=2, not ruled deg-v=1");
                 let area_proxy = (patch.evaluate(0.0, 0.0) - patch.evaluate(1.0, 1.0)).length();
                 assert!(area_proxy > 0.05, "patch should span corner, span={area_proxy}");
@@ -1146,7 +1146,7 @@
 
     /// FreeCAD L-bracket coords (Z-up): base 2×1×0.3 + upright 0.3×1×2.
     /// Mixed edges at (0.3,0,0.3): concave re-entrant along +Y + convex upright front along +Z
-    /// (FreeCAD edges 6 + 4 → 2 cyl + 1 BSpline OnSame).
+    /// (FreeCAD edges 6 + 4 → 2 cyl + 1 BSpline JoinPatch).
     fn lbracket_mixed_onsame_faces() -> (Vec<NurbsFace>, Vec<(usize, u8)>) {
         use crate::nurbs::NurbsFaceId;
         // Shelf top z=0.3, n=+Z (dU=+X, dV=+Y)
@@ -1295,29 +1295,29 @@
     #[test]
     fn lbracket_ondiff_vs_onsame_end_states() {
         // FreeCAD vertex (0.3,0,0.3): 2 convex + 1 concave.
-        // Concave alone → OnDiff; either convex → OnSame (matches the other convex).
+        // Concave alone → LoneEdge; either convex → JoinPatch (matches the other convex).
         let (faces, e_conc, e_vert, e_front) = lbracket_triad_faces();
         let v = Vec3::new(0.3, 0.0, 0.3);
         assert_eq!(
             classify_corner_state_at_vertex(&faces, v),
-            CornerState::OnSame,
-            "histogram at mixed triad is 2+1 OnSame"
+            CornerMix::Majority,
+            "histogram at mixed triad is 2+1 JoinPatch"
         );
         assert_eq!(
             classify_fillet_end_state(&faces, v, e_conc.0, e_conc.1),
-            CornerState::OnDiff,
-            "filleting the odd (concave) edge is OnDiff"
+            CornerMix::Minority,
+            "filleting the odd (concave) edge is LoneEdge"
         );
         assert_eq!(
             classify_fillet_end_state(&faces, v, e_vert.0, e_vert.1),
-            CornerState::OnSame,
-            "filleting a majority (convex) edge is OnSame"
+            CornerMix::Majority,
+            "filleting a majority (convex) edge is JoinPatch"
         );
         assert_eq!(
             classify_fillet_end_state(&faces, v, e_front.0, e_front.1),
-            CornerState::OnSame
+            CornerMix::Majority
         );
-        // FreeCAD topology: single OnDiff edge → 1 cyl, no join patch
+        // FreeCAD topology: single LoneEdge edge → 1 cyl, no join patch
         let mut f1 = faces.clone();
         apply_edges_fillet_batch(&mut f1, &[e_conc], 0.08, 100).expect("ondiff single");
         assert_eq!(
@@ -1325,9 +1325,9 @@
             1
         );
         assert_eq!(
-            f1.iter().filter(|f| f.surface.name == "OnSame").count(),
+            f1.iter().filter(|f| f.surface.name == "JoinPatch").count(),
             0,
-            "OnDiff single edge must not invent a join patch"
+            "LoneEdge single edge must not invent a join patch"
         );
         // FreeCAD: convex pair (skip concave) → 2 cyl, no BSpline
         let mut f2 = faces.clone();
@@ -1337,11 +1337,11 @@
             2
         );
         assert_eq!(
-            f2.iter().filter(|f| f.surface.name == "OnSame").count(),
+            f2.iter().filter(|f| f.surface.name == "JoinPatch").count(),
             0,
-            "two convex at mixed vertex: no OnSame patch (FreeCAD pair 4+12)"
+            "two convex at mixed vertex: no JoinPatch patch (FreeCAD pair 4+12)"
         );
-        // FreeCAD: concave + one convex → 2 cyl + BSpline (OnSame join)
+        // FreeCAD: concave + one convex → 2 cyl + BSpline (JoinPatch join)
         let mut f3 = faces.clone();
         apply_edges_fillet_batch(&mut f3, &[e_conc, e_vert], 0.08, 100).expect("mixed pair");
         assert_eq!(
@@ -1349,9 +1349,9 @@
             2
         );
         assert_eq!(
-            f3.iter().filter(|f| f.surface.name == "OnSame").count(),
+            f3.iter().filter(|f| f.surface.name == "JoinPatch").count(),
             1,
-            "mixed pair must emit OnSame join"
+            "mixed pair must emit JoinPatch join"
         );
     }
 
@@ -1373,12 +1373,12 @@
         );
         apply_edges_fillet_batch(&mut faces, &pair, 0.12, 100).expect("batch");
         let n_cyl = faces.iter().filter(|f| f.surface.name == "Fillet").count();
-        let n_onsame = faces.iter().filter(|f| f.surface.name == "OnSame").count();
+        let n_onsame = faces.iter().filter(|f| f.surface.name == "JoinPatch").count();
         assert_eq!(n_cyl, 2, "2 cylinders");
-        assert_eq!(n_onsame, 1, "1 OnSame join patch");
+        assert_eq!(n_onsame, 1, "1 JoinPatch join patch");
         let patch = faces
             .iter()
-            .find(|f| f.surface.name == "OnSame")
+            .find(|f| f.surface.name == "JoinPatch")
             .unwrap()
             .surface
             .as_ref();
@@ -1400,11 +1400,11 @@
             return;
         }
         apply_edges_fillet_batch(&mut faces, &[edges[0], edges[1]], 0.12, 100).expect("batch");
-        // Sample Fillet + OnSame only (geometry under test).
+        // Sample Fillet + JoinPatch only (geometry under test).
         let mut azra_blend = Vec::new();
         for f in &faces {
             let name = f.surface.name.as_str();
-            if name != "Fillet" && name != "OnSame" {
+            if name != "Fillet" && name != "JoinPatch" {
                 continue;
             }
             let s = f.surface.as_ref();
@@ -1433,7 +1433,7 @@
         // clipped rails. Pure ruled mid-join was the worse hole; loft lands ~0.06.
         assert!(
             o2a < 0.065,
-            "Tier2 OnSame hole {case}: OCCT→AZRA={o2a} tol=0.065 (circular loft vs BSpline)"
+            "Tier2 JoinPatch hole {case}: OCCT→AZRA={o2a} tol=0.065 (circular loft vs BSpline)"
         );
     }
 
@@ -1443,7 +1443,7 @@
         let v = Vec3::new(0.5, 0.5, 0.5);
         assert_eq!(
             classify_corner_state_at_vertex(&faces, v),
-            CornerState::AllSame
+            CornerMix::Uniform
         );
     }
 
