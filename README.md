@@ -4,7 +4,7 @@ A 3D modeling, sculpting and rendering application written in Rust (wgpu): SDF, 
 
 **Created and maintained by Dimitri Neron.**
 
-> Status: early and moving fast. Windows is the primary platform.
+> Status: early and moving fast. Windows is the primary platform. **There are no prebuilt downloads yet**: AZRA must be built from source (below), and it has not been tested on other machines than the author's.
 
 ## Build and run
 
@@ -14,7 +14,12 @@ cargo run -p app --release
 cargo test -p core_math
 ```
 
-Requirements: a recent stable Rust toolchain and a GPU with Vulkan or DX12 support.
+Requirements:
+
+- a recent stable Rust toolchain;
+- a GPU with Vulkan or DX12 support;
+- **CMake and a C++ compiler** (on Windows: Visual Studio with the C++ workload). One dependency (`manifold-csg-sys`) compiles a C++ library;
+- **git and an internet connection at build time**: that dependency downloads its C++ source (Manifold v3.5.1) while building.
 
 ### Optional: OptiX path tracer
 
