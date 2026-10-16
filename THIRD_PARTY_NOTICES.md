@@ -6,6 +6,14 @@
 |---|---|---|
 | Geist and Geist Mono fonts, Copyright 2024 The Geist Project Authors | `core_engine/app/assets/fonts/` | SIL Open Font License 1.1 (`core_engine/app/assets/fonts/OFL.txt`) |
 
+## Generated content (no third-party license)
+
+The matcaps in `assets/Matcaps/` and the environments in `assets/HDR_Labs/HDR_Gradient/` are produced by `tools/gen_default_content.py` from mathematical formulas. They contain no third-party images and are covered by the repository's license.
+
+## Free content sources checked (not bundled)
+
+On 2026-10-16 the published terms of [ambientCG](https://docs.ambientcg.com/license/) (CC0 1.0) and [Poly Haven](https://polyhaven.com/license) (CC0) allowed redistribution of their assets inside software, with no attribution required. Those terms can change: check them again before bundling any file, and keep a record of the exact asset and download date.
+
 ## Code provenance: behaviour studied from other projects
 
 Some modeling and sculpting code was written while studying the behaviour (and in places the source) of other open-source tools: **Blender** (GPL-2.0-or-later: bevel, brush stroke overlap, edge-loop selection, dyntopo), **LoopTools** (GPL: circle fitting and the inset circle region) and **Open CASCADE** (LGPL-2.1 with exception: fillet corner states). A small number of functions were close ports of that code and are being replaced by independent implementations written from published mathematics (see `docs/legal/CLEAN_ROOM_LOG.md` for each item, its method and its status). As of 2026-10-14 the stroke-overlap factor, circle fitting, inset circle region, edge-loop walker and fillet corner classification have been replaced. **All of `core_math/src/bevel_op/` is still derived from GPL code**: its replacement is deferred until the bevel tool is feature-complete. Code that remains derived is distributed here under the AGPL-3.0-or-later, which is compatible with the GPL-2.0-or-later and GPL-3.0 originals, and **cannot be offered under proprietary terms until it is replaced.** This is why commercial licensing is not yet offered.
