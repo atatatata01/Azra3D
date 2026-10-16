@@ -1102,7 +1102,13 @@ impl AzraApp {
     /// event-driven idle path never wakes `check_auto_save` without mouse input.
     pub(crate) const AUTO_SAVE_INTERVAL_SECS: u64 = 120;
 
-    /// Auto-save check — call in update loop
+    /// Auto-save check — call in update loop.
+    ///
+    /// Failures log every time and toast once per distinct error. The timer
+    /// still advances, so the next try is the normal interval (no extra
+    /// backoff, and no per-frame retry). The bytes go through `save_binary`
+    /// → `atomic_write` (sibling temp, `sync_all`, rename), which never
+    /// opens the previous auto-save or the project file for write.
     pub(crate) fn check_auto_save(&mut self) {
         if self.project.scene_modified
             && self.project.last_auto_save.elapsed()
@@ -1123,16 +1129,42 @@ impl AzraApp {
             let project = match ProjectFile::from_app(self) {
                 Ok(project) => project,
                 Err(error) => {
-                    eprintln!("[AutoSave] {error}");
-                    self.project.last_auto_save = std::time::Instant::now();
+                    self.report_auto_save_failure(&error);
                     return;
                 }
             };
-            if save_binary(&path, &project).is_ok() {
-                self.toast(if sculpt_heavy { "Auto-saved (sculpt: Ctrl+S to capture latest)" } else { "Auto-saved" });
+            match save_binary(&path, &project) {
+                Ok(()) => self.report_auto_save_success(sculpt_heavy),
+                Err(error) => self.report_auto_save_failure(&error),
             }
-            self.project.last_auto_save = std::time::Instant::now();
         }
+    }
+
+    /// Log this failure in full. Toast only when the text differs from the
+    /// failure already on screen, then wait one normal auto-save interval.
+    fn report_auto_save_failure(&mut self, error: &str) {
+        eprintln!("[AutoSave] {error}");
+        if self.project.auto_save_error.as_deref() != Some(error) {
+            self.toast(&format!("Auto-save failed: {error}"));
+            self.project.auto_save_error = Some(error.to_string());
+        }
+        self.project.last_auto_save = std::time::Instant::now();
+    }
+
+    /// A write landed. The cycle after a failure says so once; later quiet
+    /// successes keep the existing auto-saved toast. A heavy sculpt still
+    /// warns that Ctrl+S is required to capture the latest stroke.
+    fn report_auto_save_success(&mut self, sculpt_heavy: bool) {
+        let recovered = self.project.auto_save_error.take().is_some();
+        if recovered {
+            self.toast("auto-save restored");
+        }
+        if sculpt_heavy {
+            self.toast("Auto-saved (sculpt: Ctrl+S to capture latest)");
+        } else if !recovered {
+            self.toast("Auto-saved");
+        }
+        self.project.last_auto_save = std::time::Instant::now();
     }
 }
 
@@ -1256,5 +1288,135 @@ mod default_scene_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod auto_save_tests {
+    use super::*;
+
+    fn scratch() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "azra-autosave-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn arm(app: &mut AzraApp) {
+        app.project.scene_modified = true;
+        app.project.last_auto_save = std::time::Instant::now()
+            - std::time::Duration::from_secs(AzraApp::AUTO_SAVE_INTERVAL_SECS + 5);
+    }
+
+    fn messages(app: &AzraApp) -> Vec<String> {
+        app.ui.toasts.iter().map(|t| t.message.clone()).collect()
+    }
+
+    /// `atomic_write` publishes via `file.fl4.bak.tmp`. A directory at that
+    /// path makes `File::create` fail before the destination is opened.
+    fn block_sibling_temp(bak: &std::path::Path) -> std::path::PathBuf {
+        let name = bak
+            .file_name()
+            .map(|n| {
+                let mut owned = n.to_os_string();
+                owned.push(".tmp");
+                owned
+            })
+            .unwrap_or_else(|| std::ffi::OsString::from("azra-save.tmp"));
+        let tmp = bak.parent().unwrap_or(std::path::Path::new(".")).join(name);
+        std::fs::create_dir_all(&tmp).unwrap();
+        tmp
+    }
+
+    #[test]
+    fn failure_toasts_once_then_restores_and_keeps_old_bytes() {
+        const PROJECT_BYTES: &[u8] = b"USER-PROJECT-BYTES";
+        const AUTOSAVE_BYTES: &[u8] = b"OLD-AUTOSAVE-BYTES";
+
+        let dir = scratch();
+        let project_path = dir.join("scene.fl4");
+        std::fs::write(&project_path, PROJECT_BYTES).unwrap();
+
+        let mut app = AzraApp::new_headless();
+        app.project.project_path = Some(project_path.clone());
+        let bak = auto_save_path(&app.project.project_path);
+        assert_ne!(bak, project_path, "auto-save must not target the project file");
+        std::fs::write(&bak, AUTOSAVE_BYTES).unwrap();
+        let blocker = block_sibling_temp(&bak);
+
+        app.ui.toasts.clear();
+        arm(&mut app);
+        app.check_auto_save();
+
+        let first = messages(&app);
+        assert_eq!(first.len(), 1, "first failure must toast once, got {first:?}");
+        assert!(
+            first[0].starts_with("Auto-save failed:"),
+            "toast must name the failure, got {}",
+            first[0]
+        );
+        assert!(
+            first[0].contains("Create ")
+                && (first[0].contains("os error")
+                    || first[0].contains("directory")
+                    || first[0].contains("Access")),
+            "toast must carry the OS error, got {}",
+            first[0]
+        );
+        assert_eq!(std::fs::read(&bak).unwrap(), AUTOSAVE_BYTES);
+        assert_eq!(std::fs::read(&project_path).unwrap(), PROJECT_BYTES);
+        assert!(app.project.auto_save_error.is_some());
+
+        let clock_before_retry = std::time::Instant::now()
+            - std::time::Duration::from_secs(AzraApp::AUTO_SAVE_INTERVAL_SECS + 5);
+        app.project.last_auto_save = clock_before_retry;
+        app.check_auto_save();
+        assert!(
+            app.project.last_auto_save > clock_before_retry,
+            "the same failure must still retry on the next cycle"
+        );
+        assert_eq!(
+            messages(&app),
+            first,
+            "the same error must not toast again"
+        );
+        assert_eq!(std::fs::read(&bak).unwrap(), AUTOSAVE_BYTES);
+        assert_eq!(std::fs::read(&project_path).unwrap(), PROJECT_BYTES);
+
+        std::fs::remove_dir_all(&blocker).unwrap();
+        arm(&mut app);
+        app.check_auto_save();
+        let restored = messages(&app);
+        assert_eq!(
+            restored.last().map(String::as_str),
+            Some("auto-save restored"),
+            "recovery must toast once, got {restored:?}"
+        );
+        assert_eq!(restored.iter().filter(|m| *m == "auto-save restored").count(), 1);
+        assert!(app.project.auto_save_error.is_none());
+        assert_ne!(std::fs::read(&bak).unwrap(), AUTOSAVE_BYTES);
+        assert!(
+            !blocker.exists(),
+            "successful auto-save must not leave its temp"
+        );
+        assert_eq!(
+            std::fs::read(&project_path).unwrap(),
+            PROJECT_BYTES,
+            "auto-save must not rewrite the project file"
+        );
+
+        arm(&mut app);
+        app.check_auto_save();
+        let quiet = messages(&app);
+        assert_eq!(quiet.last().map(String::as_str), Some("Auto-saved"));
+        assert_eq!(quiet.iter().filter(|m| *m == "auto-save restored").count(), 1);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

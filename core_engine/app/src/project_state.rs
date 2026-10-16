@@ -8,6 +8,11 @@ pub(crate) struct ProjectState {
     /// When set, overwrite-save (Ctrl+S) is blocked — file was saved by a newer version.
     pub(crate) save_blocked_reason: Option<String>,
     pub(crate) last_auto_save: std::time::Instant,
+    /// Error text of the auto-save failure already shown to the user.
+    /// `None` after a successful write (or before any failure). Equal to the
+    /// latest error while that same failure keeps repeating, so the toast
+    /// fires once; every attempt is still logged.
+    pub(crate) auto_save_error: Option<String>,
     pub(crate) recent_files: Vec<std::path::PathBuf>,
     /// CR-70b: Background file-open dialog — prevents blocking the render loop (moved from FourthLayerApp — Phase 1).
     pub(crate) pending_file_open: Option<std::sync::mpsc::Receiver<Option<std::path::PathBuf>>>,
@@ -25,6 +30,7 @@ impl ProjectState {
             scene_modified: false,
             save_blocked_reason: None,
             last_auto_save: std::time::Instant::now(),
+            auto_save_error: None,
             recent_files,
             pending_file_open: None,
             last_window_title: String::new(),
