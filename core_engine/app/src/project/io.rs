@@ -3,15 +3,70 @@
 //! documented on the fns themselves — the serialized SHAPES live in mod.rs.
 use super::*;
 
-/// Write `data` to a temporary file next to `path`, flush to disk, then rename
-/// over the target — preventing corruption from interrupted writes.
+/// Sibling temp path in the SAME directory as `path` (`file.fl4` → `file.fl4.tmp`).
+/// Same directory keeps the rename on one filesystem, which is what makes it atomic.
+fn sibling_tmp(path: &Path) -> PathBuf {
+    let mut name = path
+        .file_name()
+        .map(|n| n.to_os_string())
+        .unwrap_or_else(|| std::ffi::OsString::from("azra-save"));
+    name.push(".tmp");
+    match path.parent() {
+        Some(dir) if !dir.as_os_str().is_empty() => dir.join(name),
+        _ => PathBuf::from(name),
+    }
+}
+
+/// The panic value a worker thread actually panicked with. `join()` only hands back
+/// `Box<dyn Any>`; dropping it is how a serialize failure became the fixed string
+/// "thread panicked" with no OS or bincode detail.
+fn panic_payload_message(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = payload.downcast_ref::<&str>() {
+        (*s).to_string()
+    } else {
+        "unknown panic".to_string()
+    }
+}
+
+/// Write `data` to a temporary file in the same directory as `path`, fsync it, then
+/// rename over the target. A failure leaves any existing target byte-for-byte intact:
+/// the destination is never opened for write, and a failed attempt deletes only the temp.
 pub(crate) fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
-    let tmp = path.with_extension("tmp");
-    let mut f = std::fs::File::create(&tmp).map_err(|e| format!("Create tmp: {}", e))?;
-    f.write_all(data).map_err(|e| { let _ = std::fs::remove_file(&tmp); format!("Write tmp: {}", e) })?;
-    f.flush().map_err(|e| { let _ = std::fs::remove_file(&tmp); format!("Flush tmp: {}", e) })?;
-    drop(f);
-    std::fs::rename(&tmp, path).map_err(|e| { let _ = std::fs::remove_file(&tmp); format!("Rename tmp→target: {}", e) })
+    let tmp = sibling_tmp(path);
+    let write_result = (|| -> Result<(), String> {
+        let mut f = std::fs::File::create(&tmp)
+            .map_err(|e| format!("Create {}: {e}", tmp.display()))?;
+        if let Err(e) = f.write_all(data) {
+            return Err(format!("Write {}: {e}", tmp.display()));
+        }
+        // `flush` only reaches the OS page cache. `sync_all` (fsync / FlushFileBuffers)
+        // waits until the bytes are durable. Rename after that, so a crash cannot
+        // publish a truncated target.
+        if let Err(e) = f.sync_all() {
+            return Err(format!("Sync {}: {e}", tmp.display()));
+        }
+        drop(f);
+        std::fs::rename(&tmp, path).map_err(|e| {
+            format!("Rename {} → {}: {e}", tmp.display(), path.display())
+        })?;
+        // Directory fsync makes the rename itself durable. Windows cannot open a
+        // directory this way; the file sync above is the durability guarantee there.
+        #[cfg(unix)]
+        if let Some(dir) = path.parent() {
+            if !dir.as_os_str().is_empty() {
+                if let Ok(df) = std::fs::File::open(dir) {
+                    let _ = df.sync_all();
+                }
+            }
+        }
+        Ok(())
+    })();
+    if write_result.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    write_result
 }
 
 /// Magic delimiter for the optional, self-delimiting `child_order` side-channel appended AFTER the
@@ -453,7 +508,12 @@ pub(crate) fn save_binary(path: &Path, project: &ProjectFile) -> Result<(), Stri
             })
             .map_err(|e| format!("Thread spawn error: {}", e))?
             .join()
-            .map_err(|_| "Serialize thread panicked".to_string())?
+            .map_err(|payload| {
+                format!(
+                    "Serialize thread panicked: {}",
+                    panic_payload_message(&*payload)
+                )
+            })?
     })
 }
 
@@ -668,7 +728,12 @@ pub(crate) fn load_binary(path: &Path) -> Result<ProjectFile, String> {
             })
             .map_err(|e| format!("Thread spawn error: {}", e))?
             .join()
-            .map_err(|_| "Deserialize thread panicked".to_string())?
+            .map_err(|payload| {
+                format!(
+                    "Deserialize thread panicked: {}",
+                    panic_payload_message(&*payload)
+                )
+            })?
     })
 }
 
@@ -680,4 +745,70 @@ pub(crate) fn save_json(path: &Path, project: &ProjectFile) -> Result<(), String
 pub(crate) fn load_json(path: &Path) -> Result<ProjectFile, String> {
     let data = std::fs::read_to_string(path).map_err(|e| format!("Read error: {}", e))?;
     serde_json::from_str(&data).map_err(|e| format!("JSON parse error: {}", e))
+}
+
+#[cfg(test)]
+mod atomic_write_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn scratch() -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "azra-atomic-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn replace_is_complete_and_leaves_no_temp() {
+        let dir = scratch();
+        let path = dir.join("default_scene.fl4");
+        atomic_write(&path, b"ORIGINAL").unwrap();
+        atomic_write(&path, b"REPLACED-BYTES").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"REPLACED-BYTES");
+        assert!(!sibling_tmp(&path).exists(), "temp must not survive a successful rename");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn failed_write_does_not_touch_existing_bytes() {
+        let dir = scratch();
+        let path = dir.join("default_scene.fl4");
+        atomic_write(&path, b"ORIGINAL-BYTES").unwrap();
+
+        let bad = dir.join("missing").join("default_scene.fl4");
+        let err = atomic_write(&bad, b"SHOULD-NOT-LAND").unwrap_err();
+        assert!(
+            err.contains("Create ") && (err.contains("os error") || err.contains("No such") || err.contains("directory")),
+            "failure must name the OS error, got {err}"
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), b"ORIGINAL-BYTES");
+        assert!(!bad.exists());
+        assert!(!sibling_tmp(&bad).exists(), "failed write must remove its temp");
+
+        // A directory sitting at the destination: rename fails, and the directory
+        // is not replaced by a truncated file.
+        let slot = dir.join("slot");
+        std::fs::create_dir(&slot).unwrap();
+        let err = atomic_write(&slot, b"NEWDATA").unwrap_err();
+        assert!(err.contains("Rename "), "{err}");
+        assert!(slot.is_dir());
+        assert!(!sibling_tmp(&slot).exists());
+
+        let blocker = dir.join("not-a-directory");
+        std::fs::write(&blocker, b"x").unwrap();
+        let nested = blocker.join("default_scene.fl4");
+        let err = crate::project::ensure_default_scene_dir(&nested).unwrap_err();
+        assert!(err.contains("Could not create"), "{err}");
+        assert!(err.contains("not-a-directory"), "{err}");
+        assert_eq!(std::fs::read(&blocker).unwrap(), b"x");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

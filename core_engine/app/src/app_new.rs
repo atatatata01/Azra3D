@@ -15,6 +15,22 @@ use core_math::scene_graph::{SceneGraph, NodeId, NodePayload};
 use graphics::gpu_volume::SdfGpuVolume;
 use std::collections::HashMap;
 
+/// Harness env vars that build or replace the scene themselves. Loading the user's
+/// default scene first would either be thrown away (`AZRA_OPEN`) or mixed into a
+/// measured scene (demo / stress).
+fn startup_scene_claimed_by_harness() -> bool {
+    [
+        "AZRA_OPEN",
+        "AZRA_DEMO_SCENE",
+        "AZRA_DEMO_INTERIOR",
+        "AZRA_INSTANCE_STRESS",
+        "AZRA_MULTI_MESH_STRESS",
+        "AZRA_DENSE_STRESS",
+    ]
+    .iter()
+    .any(|key| std::env::var_os(key).is_some())
+}
+
 /// Carries everything the UI needs after a successful /generate call.
 impl FourthLayerApp {
     pub(crate) fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -155,7 +171,7 @@ impl FourthLayerApp {
         let t_server = std::time::Instant::now();
         let (server_proc, server_msg) = gpu_init::spawn_texture_server(7860);
         eprintln!("[TIMING] Texture server spawn: {:?}", t_server.elapsed());
-        let app = Self::construct(gpu_init, gpu_info, cpu_volume, server_proc, Some(server_msg));
+        let app = Self::construct(gpu_init, gpu_info, cpu_volume, server_proc, Some(server_msg), true);
         eprintln!("[TIMING] ====== TOTAL STARTUP: {:?} ======", t_total.elapsed());
         app
     }
@@ -163,21 +179,26 @@ impl FourthLayerApp {
     /// HEADLESS constructor for in-process integration tests (the surface-sculpt fuzz harness):
     /// the REAL `FourthLayerApp` with `gpu: None` (exactly the state production runs in before
     /// pipeline warmup) and no side-effect spawns (no texture-server process, no startup toast).
+    /// Does not read the user's default scene — tests stay deterministic.
     /// Everything else — scene graph, caches, sculpt state, undo history — is the production
     /// construction path (`construct`), NOT a parallel test double.
     #[cfg(test)]
     pub(crate) fn new_headless() -> Self {
-        Self::construct(None, GpuInfo::default(), SdfVolume::new_empty(128, 2.0), None, None)
+        Self::construct(None, GpuInfo::default(), SdfVolume::new_empty(128, 2.0), None, None, false)
     }
 
     /// The ONE app-construction body shared by `new` (eframe) and `new_headless` (tests).
     /// PURE relocation of the former tail of `new` — field init + post-init bridge calls.
+    ///
+    /// `load_default_scene`: production `new` passes true. Headless tests pass false so a
+    /// developer's saved default cannot leak into a unit test.
     fn construct(
         gpu_init: Option<GpuInitState>,
         gpu_info: GpuInfo,
         cpu_volume: SdfVolume,
         server_proc: Option<std::process::Child>,
         server_msg: Option<String>,
+        load_default_scene: bool,
     ) -> Self {
         let tweak = ToolSettings::load();
         // IBL: env worker → poll channel + the one-time BRDF LUT worker (env_ibl.rs).
@@ -511,7 +532,22 @@ impl FourthLayerApp {
                 u32::from(app.render.dbg_cluster_view),
             );
         }
-        app.rebake_no_undo();
+        // Default scene replaces the empty graph + sun BEFORE rebake. A successful
+        // load already scheduled staggered body bakes (`post_load_warmup`); calling
+        // `rebake_no_undo` on top of that would mark SCENE and bake every body in
+        // one frame (the TDR class `apply_to_app` deliberately avoids).
+        let loaded_default = if load_default_scene && !startup_scene_claimed_by_harness() {
+            app.load_default_scene_at_startup()
+        } else {
+            false
+        };
+        if loaded_default {
+            // apply_to_app's LIGHT/MESH dirty marks the document modified. A startup
+            // template is not an unsaved edit.
+            app.project.scene_modified = false;
+        } else {
+            app.rebake_no_undo();
+        }
         app.register_input_actions();
         // C.1 / B.4: AFTER graph is final (build_graph_from_flat wipes nodes).
         // Example: AZRA_INSTANCE_STRESS=1000 AZRA_SCOREBOARD=1

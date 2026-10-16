@@ -1043,26 +1043,55 @@ impl AzraApp {
     }
 
     /// Save the current scene as the default startup scene.
+    ///
+    /// The file is a template: it is reloaded by `load_default_scene_at_startup` and
+    /// is not the current document (`project_path` stays whatever the user had).
     pub(crate) fn save_as_default_scene(&mut self) {
-        let path = crate::project::default_scene_path();
+        let path = match crate::project::default_scene_path() {
+            Ok(path) => path,
+            Err(error) => {
+                self.toast(&format!("Save default failed: {error}"));
+                return;
+            }
+        };
+        if let Err(error) = crate::project::ensure_default_scene_dir(&path) {
+            self.toast(&format!("Save default failed: {error}"));
+            return;
+        }
+        self.save_default_scene_to(&path);
+    }
+
+    /// Serialize the current scene and atomically replace `path`.
+    /// Every failure toasts `Save default failed: ` plus the underlying error
+    /// (serialize, permissions, missing directory, rename).
+    pub(crate) fn save_default_scene_to(&mut self, path: &std::path::Path) {
         self.voxel_sync_node_mesh(); // persist the live sculpt, not the stale initial mesh
         let project = match ProjectFile::from_app(self) {
             Ok(project) => project,
-            Err(error) => { self.toast(&format!("Save failed: {error}")); return; }
+            Err(error) => {
+                self.toast(&format!("Save default failed: {error}"));
+                return;
+            }
         };
-        match save_binary(&path, &project) {
+        match save_binary(path, &project) {
             Ok(()) => self.toast("Saved as default scene"),
-            Err(e) => self.toast(&format!("Save default failed: {}", e)),
+            Err(e) => self.toast(&format!("Save default failed: {e}")),
         }
     }
 
     /// Delete the default startup scene so the app opens with an empty scene.
     pub(crate) fn reset_default_scene(&mut self) {
-        let path = crate::project::default_scene_path();
+        let path = match crate::project::default_scene_path() {
+            Ok(path) => path,
+            Err(error) => {
+                self.toast(&format!("Reset failed: {error}"));
+                return;
+            }
+        };
         if path.exists() {
             match std::fs::remove_file(&path) {
                 Ok(()) => self.toast("Default scene reset"),
-                Err(e) => self.toast(&format!("Reset failed: {}", e)),
+                Err(e) => self.toast(&format!("Reset failed: {e}")),
             }
         } else {
             self.toast("No default scene to reset");
@@ -1103,6 +1132,129 @@ impl AzraApp {
                 self.toast(if sculpt_heavy { "Auto-saved (sculpt: Ctrl+S to capture latest)" } else { "Auto-saved" });
             }
             self.project.last_auto_save = std::time::Instant::now();
+        }
+    }
+}
+
+#[cfg(test)]
+mod default_scene_tests {
+    use super::*;
+
+    fn scratch() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "azra-savedef-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn marker_present(app: &AzraApp) -> bool {
+        app.scene.scene_graph.all_nodes().any(|(_, node)| {
+            matches!(
+                &node.payload,
+                core_math::scene_graph::NodePayload::Group { name } if name == "SAVEDEF-MARKER"
+            )
+        })
+    }
+
+    #[test]
+    fn save_default_round_trips_and_stays_untitled() {
+        let dir = scratch();
+        let path = dir.join("default_scene.fl4");
+        let mut app = AzraApp::new_headless();
+        let root = app.scene.scene_graph.root();
+        app.scene.scene_graph.add_child(
+            root,
+            core_math::scene_graph::NodePayload::Group {
+                name: "SAVEDEF-MARKER".into(),
+            },
+        );
+        app.viewport.camera.distance = 42.5;
+        app.ui.toasts.clear();
+        app.save_default_scene_to(&path);
+
+        let toast = app.ui.toasts.last().map(|t| t.message.clone()).unwrap_or_default();
+        assert_eq!(toast, "Saved as default scene", "{toast}");
+        assert!(path.is_file(), "default scene file was not written");
+        assert!(
+            app.project.project_path.is_none(),
+            "save-default must not retarget the current document"
+        );
+
+        let mut loaded = AzraApp::new_headless();
+        assert!(
+            (loaded.viewport.camera.distance - 42.5).abs() > 1.0,
+            "fresh app must not already be the saved scene"
+        );
+        assert!(!marker_present(&loaded));
+        assert!(loaded.load_startup_scene_from(&path).expect("load startup scene"));
+        assert!((loaded.viewport.camera.distance - 42.5).abs() < 1e-4);
+        assert!(marker_present(&loaded), "saved group did not reload");
+        assert!(loaded.project.project_path.is_none());
+        assert!(!loaded.project.scene_modified);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_default_failure_toasts_the_real_error() {
+        let dir = scratch();
+        let mut app = AzraApp::new_headless();
+        let distance = app.viewport.camera.distance;
+        let bad = dir.join("missing-parent").join("default_scene.fl4");
+        app.ui.toasts.clear();
+        app.save_default_scene_to(&bad);
+        let toast = app.ui.toasts.last().map(|t| t.message.clone()).unwrap_or_default();
+        assert!(
+            toast.starts_with("Save default failed:"),
+            "missing directory must toast, got {toast:?}"
+        );
+        assert!(
+            toast.contains("Create ")
+                && (toast.contains("os error") || toast.contains("No such") || toast.contains("directory")),
+            "toast must carry the OS error, got {toast}"
+        );
+        assert!(!bad.exists());
+
+        let garbage = dir.join("garbage.fl4");
+        std::fs::write(&garbage, b"this is not an fl4").unwrap();
+        let err = app
+            .load_startup_scene_from(&garbage)
+            .expect_err("corrupt default scene must fail");
+        assert!(
+            err.contains("Deserialize") || err.contains("error"),
+            "load error must name the decode failure, got {err}"
+        );
+        assert!((app.viewport.camera.distance - distance).abs() < 1e-4);
+        assert!(!marker_present(&app));
+        assert!(app.project.project_path.is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn default_scene_path_is_the_azra_data_file() {
+        match crate::project::default_scene_path() {
+            Ok(path) => {
+                assert_eq!(
+                    path.file_name().and_then(|s| s.to_str()),
+                    Some("default_scene.fl4")
+                );
+                assert_eq!(
+                    path.parent().and_then(|d| d.file_name()).and_then(|s| s.to_str()),
+                    Some("Azra")
+                );
+                assert!(path.is_absolute(), "{}", path.display());
+            }
+            Err(error) => {
+                assert!(
+                    error.contains("local data directory"),
+                    "unresolved data dir must say why, got {error}"
+                );
+            }
         }
     }
 }

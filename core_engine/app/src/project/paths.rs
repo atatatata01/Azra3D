@@ -35,13 +35,34 @@ pub(crate) fn save_recent_files(files: &[PathBuf]) {
 // Default Scene
 // ==================================================================
 
-/// Fixed path for the user's default startup scene.
-pub(crate) fn default_scene_path() -> PathBuf {
-    let dir = dirs::data_local_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("Azra");
-    let _ = std::fs::create_dir_all(&dir);
-    dir.join("default_scene.fl4")
+/// Fixed path for the user's default startup scene: `%LOCALAPPDATA%/Azra/default_scene.fl4`
+/// (on Unix, `$XDG_DATA_HOME/Azra/` or `~/.local/share/Azra/`).
+///
+/// Does not create the directory and does not fall back to the process working
+/// directory. A missing local-data dir is an error the caller toasts — writing to
+/// `.` saved a file the next launch (different cwd) would never read.
+pub(crate) fn default_scene_path() -> Result<PathBuf, String> {
+    let dir = dirs::data_local_dir().ok_or_else(|| {
+        "Could not resolve the local data directory (LOCALAPPDATA / XDG_DATA_HOME)".to_string()
+    })?;
+    Ok(dir.join("Azra").join("default_scene.fl4"))
+}
+
+/// Create the directory that holds the default scene. Save is the only caller;
+/// load and reset must not invent the folder just to discover the file is absent.
+pub(crate) fn ensure_default_scene_dir(path: &Path) -> Result<(), String> {
+    let Some(dir) = path.parent() else {
+        return Err(format!(
+            "Default scene path has no directory: {}",
+            path.display()
+        ));
+    };
+    if dir.as_os_str().is_empty() {
+        return Ok(());
+    }
+    std::fs::create_dir_all(dir).map_err(|e| {
+        format!("Could not create {}: {e}", dir.display())
+    })
 }
 
 // ==================================================================

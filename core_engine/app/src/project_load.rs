@@ -1120,6 +1120,59 @@ impl AzraApp {
         }
     }
 
+    /// Load `path` as the startup template.
+    ///
+    /// Unlike `load_scene_from_path`, this does not bind `project_path`, does not
+    /// add a recent file, and leaves the session untitled. `Ok(false)` means the
+    /// file is absent (empty start is correct). `Err` is the real IO or decode
+    /// error; the caller toasts it and the in-memory scene is unchanged because
+    /// `apply_to_app` runs only after a successful read.
+    pub(crate) fn load_startup_scene_from(&mut self, path: &Path) -> Result<bool, String> {
+        if !path.exists() {
+            return Ok(false);
+        }
+        if !path.is_file() {
+            return Err(format!("{} is not a file", path.display()));
+        }
+        let project = load_binary(path)?;
+        project.apply_to_app(self);
+        self.restore_env_from_record(project.env.as_ref(), path.parent());
+        // Template, not the current document. Ctrl+S stays Save As.
+        self.project.project_path = None;
+        self.project.scene_modified = false;
+        self.project.last_auto_save = std::time::Instant::now();
+        Ok(true)
+    }
+
+    /// Read `%LOCALAPPDATA%/Azra/default_scene.fl4` when it exists.
+    /// Returns true only when a scene was applied. Failures toast the real error
+    /// and leave the empty startup scene in place.
+    pub(crate) fn load_default_scene_at_startup(&mut self) -> bool {
+        let path = match crate::project::default_scene_path() {
+            Ok(path) => path,
+            Err(error) => {
+                let msg = format!("Open default scene failed: {error}");
+                eprintln!("[DefaultScene] {msg}");
+                self.toast(&msg);
+                return false;
+            }
+        };
+        match self.load_startup_scene_from(&path) {
+            Ok(loaded) => {
+                if loaded {
+                    eprintln!("[DefaultScene] loaded {}", path.display());
+                }
+                loaded
+            }
+            Err(error) => {
+                let msg = format!("Open default scene failed: {error}");
+                eprintln!("[DefaultScene] {msg}");
+                self.toast(&msg);
+                false
+            }
+        }
+    }
+
     pub(crate) fn load_scene_from_path(&mut self, path: &Path) {
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("fl4");
         let result = if ext == "json" {
