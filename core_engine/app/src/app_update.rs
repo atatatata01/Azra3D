@@ -1635,7 +1635,7 @@ impl FourthLayerApp {
                 // ensure_deferred_full_pipeline on the first Pbr/Lit frame instead.
                 if compile_analytical_eager {
                     bg_compiling_flag.store(true, std::sync::atomic::Ordering::SeqCst);
-                    let df_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let df_result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                         let df_wgsl = graphics::build_deferred_wgsl(None);
                         let df_shader = bg_device.create_shader_module(wgpu::ShaderModuleDescriptor{
                             label:Some("DeferredFull (background)"),
@@ -1670,7 +1670,7 @@ impl FourthLayerApp {
                 // Fog pipeline — Tier 1: lazy (ensure_fog_pipeline fires when fog is enabled). Eager warmup
                 // only when analytical is on (it embeds scene_sdf → grows with primitives).
                 if compile_analytical_eager {
-                    let fog_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let fog_result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                         let fog_wgsl = graphics::build_fog_wgsl(None);
                         let fog_shader = bg_device.create_shader_module(wgpu::ShaderModuleDescriptor{
                             label: Some("Fog (bg)"), source: wgpu::ShaderSource::Wgsl(fog_wgsl.into())});
@@ -1696,7 +1696,7 @@ impl FourthLayerApp {
                     }
                 } else { let _ = &bg_fog_pl; }
                 // FXAA pipeline
-                let fxaa_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let fxaa_result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                     let fxaa_shader = bg_device.create_shader_module(wgpu::ShaderModuleDescriptor{
                         label: Some("FXAA (bg)"), source: wgpu::ShaderSource::Wgsl(graphics::FXAA_WGSL.into())});
                     bg_device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor{
@@ -1708,7 +1708,7 @@ impl FourthLayerApp {
                     Err(e) => { let msg = e.downcast_ref::<String>().map(|s| s.as_str()).or_else(|| e.downcast_ref::<&str>().copied()).unwrap_or("unknown"); eprintln!("[SHADER ERROR] FXAA bg compilation panicked: {}", msg); }
                 }
                 // Temporal reproject pipeline
-                let temporal_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let temporal_result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                     let temporal_shader = bg_device.create_shader_module(wgpu::ShaderModuleDescriptor{
                         label: Some("temporal_reproject (bg)"), source: wgpu::ShaderSource::Wgsl(graphics::TEMPORAL_REPROJECT_WGSL.into())});
                     bg_device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor{
@@ -1720,7 +1720,7 @@ impl FourthLayerApp {
                     Err(e) => { let msg = e.downcast_ref::<String>().map(|s| s.as_str()).or_else(|| e.downcast_ref::<&str>().copied()).unwrap_or("unknown"); eprintln!("[SHADER ERROR] Temporal bg compilation panicked: {}", msg); }
                 }
                 // Primary bake pipeline
-                let bake_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let bake_result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                     let bake_shader = bg_device.create_shader_module(wgpu::ShaderModuleDescriptor{
                         label: Some("volume_bake.wgsl (bg)"),
                         source: wgpu::ShaderSource::Wgsl(graphics::stub_out_blend_noise_wgsl(graphics::VOLUME_BAKE_WGSL).into())});
@@ -1758,7 +1758,7 @@ impl FourthLayerApp {
                 // this ordering keeps the bake warm-up unregressed. Race window (select lands
                 // before this finishes) is covered by the ensure_sdf_mesher lazy fallback, which
                 // now names its cost in the log.
-                let mesher_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let mesher_result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                     crate::sdf_gpu_mesh::SdfMeshGpu::new_with_cache(&bg_device, cache_ref)
                 }));
                 match mesher_result {
@@ -1771,7 +1771,7 @@ impl FourthLayerApp {
                 }
                 // Brick fill pipeline — Tier 1: PARKED (use_brick_pool off); lazy via ensure_brick_fill.
                 if compile_analytical_eager {
-                    let brick_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let brick_result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                         let brick_shader = bg_device.create_shader_module(wgpu::ShaderModuleDescriptor{
                             label: Some("brick_fill.wgsl (bg)"),
                             source: wgpu::ShaderSource::Wgsl(graphics::build_brick_fill_wgsl().into())});
@@ -1785,7 +1785,7 @@ impl FourthLayerApp {
                     }
                 } else { let _ = &bg_brick_pl; }
                 // SSAO pipelines (render/src/ssao.rs — tiny standalone module, pt_denoise class).
-                let ssao_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let ssao_result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                     render::ssao::SsaoPipelines::new(&bg_device, cache_ref)
                 }));
                 match ssao_result {
@@ -1794,7 +1794,7 @@ impl FourthLayerApp {
                 }
                 // CONSOLE_AUDIT B3: RT-shadow visibility pass — same BGL entries as
                 // `ensure_rt_shadow_pipeline` (graphics::bgl::rt_shadow_bgl_entries).
-                let rt_shadow_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let rt_shadow_result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                     let bgl = bg_device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                         label: Some("rt_shadow_bgl (background)"),
                         entries: &graphics::bgl::rt_shadow_bgl_entries(),

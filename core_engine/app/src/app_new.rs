@@ -155,8 +155,12 @@ impl FourthLayerApp {
         let t_server = std::time::Instant::now();
         let (server_proc, server_msg) = gpu_init::spawn_texture_server(7860);
         eprintln!("[TIMING] Texture server spawn: {:?}", t_server.elapsed());
+        let device_live = render_state_opt.is_some();
         let app = Self::construct(gpu_init, gpu_info, cpu_volume, server_proc, Some(server_msg));
         eprintln!("[TIMING] ====== TOTAL STARTUP: {:?} ======", t_total.elapsed());
+        // AZRA_TEST_PANIC=1 — after the wgpu device exists, before the event loop.
+        // Unset in production. See panic_safety::maybe_deliberate_test_panic.
+        crate::panic_safety::maybe_deliberate_test_panic(device_live);
         app
     }
 

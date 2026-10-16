@@ -15,7 +15,7 @@ pub(crate) fn ensure_fog_pipeline(gpu: &mut GpuCtx) {
     let bgl = &gpu.bind_groups.fog_bgl;
     let cache_ref = (*gpu.pipelines.pipeline_cache).as_ref();
     let t = std::time::Instant::now();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
         let fog_wgsl = graphics::build_fog_wgsl(None);
         let fog_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor{
             label: Some("Fog (lazy)"),
@@ -527,7 +527,7 @@ pub(crate) fn ensure_rt_shadow_pipeline(gpu: &mut GpuCtx) {
     let device = &gpu.device;
     let cache_ref = (*gpu.pipelines.pipeline_cache).as_ref();
     let t = std::time::Instant::now();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
         let bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("rt_shadow_bgl"), entries: &graphics::bgl::rt_shadow_bgl_entries(),
         });
@@ -568,7 +568,7 @@ pub(crate) fn ensure_rt_denoise_pipelines(gpu: &mut GpuCtx) {
     let device = &gpu.device;
     let cache_ref = (*gpu.pipelines.pipeline_cache).as_ref();
     let t = std::time::Instant::now();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
         let d_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("rt_denoise_bgl"), entries: &graphics::bgl::rt_denoise_bgl_entries() });
         let d_pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -631,7 +631,7 @@ pub(crate) fn ensure_prim_outline_pipeline(gpu: &mut GpuCtx) {
     let device = &gpu.device;
     let cache_ref = (*gpu.pipelines.pipeline_cache).as_ref();
     let t = std::time::Instant::now();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("PrimOutline (lazy)"),
             source: wgpu::ShaderSource::Wgsl(graphics::build_prim_outline_wgsl().into()),
@@ -657,7 +657,7 @@ pub(crate) fn ensure_env_prefilter_pipeline(gpu: &mut GpuCtx) {
     let device = &gpu.device;
     let cache_ref = (*gpu.pipelines.pipeline_cache).as_ref();
     let t = std::time::Instant::now();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
         let bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("env_prefilter_bgl"),
             entries: &graphics::bgl::env_prefilter_bgl_entries(),
@@ -1329,7 +1329,7 @@ pub(crate) fn ensure_blend_pipeline(gpu: &mut GpuCtx) {
         })
     });
     let cache_ref = (*gpu.pipelines.pipeline_cache).as_ref();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Blend (lazy)"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../../../graphics/src/composite_blend.wgsl").into()),

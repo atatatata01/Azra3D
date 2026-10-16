@@ -91,6 +91,9 @@ pub mod ssgi;
 pub mod types;
 pub mod serialize;
 pub mod bgl;
+/// On-disk pipeline-cache envelope (header, version, size, checksum) and the
+/// atomic temp+sync+rename writer. No GPU. Validated before `create_pipeline_cache`.
+pub mod pipeline_cache_store;
 
 // Headless GPU parity test for voxel_brush.wgsl (Phase-0 GATE): dispatches the real kernel and
 // compares it to the CPU `apply_stamp_plan` for every built-in preset. Test-only.

@@ -290,9 +290,10 @@ impl FourthLayerApp {
     /// Uses split shader modules — only rebuilds raymarch + deferred eagerly;
     /// fog + pathtrace are invalidated for lazy re-compilation on next use.
     ///
-    /// User node graphs can produce invalid WGSL. In wgpu 22, `create_shader_module`
-    /// panics on Naga validation errors — there is no Result variant. We use
-    /// `catch_unwind` to recover gracefully, keeping previous pipelines alive.
+    /// User node graphs can produce invalid WGSL. In wgpu, `create_shader_module`
+    /// panics on Naga validation errors — there is no Result variant. We recover
+    /// via `catch_recoverable` (keeps the previous pipelines). That path is a
+    /// caught panic: the crash-safety hook must not exit the process.
     pub(crate) fn rebuild_shader_pipelines(&mut self) {
         // Collect all unique node graphs and build uber-function with prim_id dispatch
         let graphs: Vec<(usize, &shader_nodes::NodeGraph)> = self.scene.primitives.iter().enumerate()
@@ -316,7 +317,7 @@ impl FourthLayerApp {
             // Build all shader modules + pipelines into locals.
             // If any step panics (Naga validation error from bad node graph WGSL),
             // catch_unwind recovers and we keep the previous working pipelines.
-            let build_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let build_result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                 // (Full analytical raymarch rebuild REMOVED 2026-07-14 — dead march display path.)
                 let df_wgsl = graphics::build_deferred_wgsl(Some(&uber_wgsl));
                 let df_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor{

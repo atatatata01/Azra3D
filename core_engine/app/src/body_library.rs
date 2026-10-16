@@ -887,7 +887,7 @@ impl AzraApp {
 
         // Build entry on main thread but iteratively + catch_unwind (poll, not draw click).
         let t0 = std::time::Instant::now();
-        let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let built = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
             self.build_library_entry(nid)
         }));
         let (entry, notes, thumb_rgb, thumb_rgba) = match built {
@@ -1587,7 +1587,7 @@ fn spawn_library_save(
         .name("lib-save".into())
         .stack_size(32 * 1024 * 1024) // large stack for bincode of deep trees
         .spawn(move || {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                 if let Err(e) = std::fs::create_dir_all(&dir) {
                     return Err(format!(
                         "Create library dir {}: {e}",

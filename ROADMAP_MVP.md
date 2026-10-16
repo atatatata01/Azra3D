@@ -85,7 +85,7 @@ Maturity: **works** (solid) · **partial** (works w/ gaps) · **broken** (presen
 | Save / load (native project, v7) | works | **[MVP]** | v8 migration reverted; stabilize format |
 | Lights | works (verify) | [post] | default light enough for MVP |
 | Frame scheduler / pipeline warmup | works | **[MVP]** | |
-| **Crash-safety (panic → clean exit)** | **broken** | **[MVP]** | a panic wedges the GPU + leaks process — GATE 0/S0.2 |
+| **Crash-safety (panic → clean exit)** | **fixed, NVIDIA verify pending** | **[MVP]** | S0.2: uncaught panic `process::exit`s before device/queue drop; atomic cache + reject |
 
 ### Voxel sculpt (post-MVP pillar)
 | Tool | Maturity | Tier | Note |
@@ -120,8 +120,9 @@ Maturity: **works** (solid) · **partial** (works w/ gaps) · **broken** (presen
 - **0.1** Commit the 4 confirmed fixes (Bug A invisible-bake, Bug B gray faces, Bug C delete-freeze,
   DUPCRASH) as a checkpoint. **(S)**
 - **0.2** Crash-survivability: a Rust panic must **fail clean** — release the GPU device, skip the
-  cache write, exit — never wedge the driver / leak a process. **(M)** *Highest leverage: this is
-  what cost us a whole session.*
+  cache write, exit — never wedge the driver / leak a process. **(M)** *Code landed on
+  `fix/crash-safety`: uncaught panic exits before wgpu drop; cache write is temp+sync+rename
+  and a bad file is rejected. Confirm on Windows/NVIDIA with `AZRA_TEST_PANIC=1`.*
 - **Exit:** deliberate panic exits without a GPU wedge or reboot; checkpoint committed; app relaunches reliably.
 - *(Detail: `STABILIZATION_PLAN.md` GATE 0.)*
 

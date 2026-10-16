@@ -247,12 +247,9 @@ pub(crate) fn ensure_texture_server(port: u16) -> (bool, String) {
 /// `main.rs` keeps only a thin `fn main()` that calls this (the crate root must own `fn main`).
 pub(crate) fn run() -> eframe::Result {
     use eframe::egui;
-    // Temporary panic hook: write panic info to a file for debugging
-    std::panic::set_hook(Box::new(|info| {
-        let msg = format!("{}\n{:?}", info, std::backtrace::Backtrace::force_capture());
-        let _ = std::fs::write(std::env::temp_dir().join("fourthlayer_panic.txt"), &msg);
-        eprintln!("PANIC: {}", info);
-    }));
+    // Uncaught panic exits the process before wgpu Device/Queue destructors
+    // run. See panic_safety.rs. Recovered panics (catch_recoverable) do not.
+    crate::panic_safety::install_panic_hook();
     crate::profiling::profile_init();
     // Force native GPU backend: Vulkan (Windows/Linux) or DX12 (Windows fallback) or Metal (Mac)
     // Override with env: WGPU_BACKEND=vulkan | WGPU_BACKEND=dx12

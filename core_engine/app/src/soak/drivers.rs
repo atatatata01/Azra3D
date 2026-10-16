@@ -98,7 +98,7 @@ impl AzraApp {
 
                 let t0 = Instant::now();
                 // Isolate panics so one bad step cannot kill the whole session.
-                let out = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let out = match crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                     (soak_active_steps()[self.soak.step_i].run)(self)
                 })) {
                     Ok(o) => o,

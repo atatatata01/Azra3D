@@ -1,5 +1,22 @@
 # COMPLETE BUG TRACKER — FourthLayer AI
 # Every finding from every audit/review, with status
+# ✅ FIXED 2026-10-16 — S0.2 CRASH-SAFETY (GATE 0). On Windows/NVIDIA a Rust panic unwound
+# through wgpu 25 `Device`/`Queue` drop (`CoreDevice::drop` → hub remove → hal
+# `vkDestroyDevice`; queue drop destroys relay semaphores first) while submissions and
+# `map_async` mappings were still outstanding. The driver waited inside that call and the
+# process could not be killed. The same unwind ran `FourthLayerApp::drop` →
+# `PipelineCache::get_data` (a driver call) and replaced `pipeline_cache.bin`. wgpu's own
+# header does not checksum the driver blob. Rayon 1.13 worker jobs `abort()` only after
+# the job's locals drop, so a worker panic could enter the same driver teardown before
+# abort. FIX: panic hook writes `%TEMP%/fourthlayer_panic.txt` then `process::exit(101)`
+# before any destructor, unless the panic is inside `catch_recoverable` (existing
+# user-WGSL / library / soak recovery). `App::drop` is the backstop (no `get_data`, then
+# exit). Cache file `%LOCALAPPDATA%/Azra/pipeline_cache.bin` is an AZPC envelope
+# (magic, version, payload length, FNV-1a checksum) written via a unique temp, flush,
+# `sync_all`, then rename. Load rejects a bad header/version/size/checksum, logs, and
+# cold-compiles. Trigger: `AZRA_TEST_PANIC=1` (no effect when unset). NVIDIA confirm is
+# still a manual pass — this environment has no GPU. Tests: `pipeline_cache_store`,
+# `panic_safety`.
 # ✅ FIXED 2026-10-13 — POLY-BOOL-NGON-BEVEL (owner `bollean.fl4`: "boolean subtract with a
 # complex rounded-bevel cutter on an n-gon mesh does not create the proper result" — stray
 # edges/fins past the cut, a PARTIAL rounded channel, strip quads, a slanted sliver). Fixture

@@ -78,10 +78,14 @@ If a task does not move us toward this, it does not belong in the current gate.
 ### GATE 0 — Make the dev loop survivable + checkpoint  ← **START HERE**
 Goal: a crash can't cost us a reboot, and we have a known-good commit to fall back to.
 - [ ] **S0.1 Commit the 4 confirmed fixes** (A, B, C, DUPCRASH) as one checkpoint (exclude `[DUPDIAG]`).
-- [ ] **S0.2 Crash-survivability audit.** Why does a panic wedge the GPU + leave an unkillable
+- [x] **S0.2 Crash-survivability audit.** Why does a panic wedge the GPU + leave an unkillable
       process + truncate `pipeline_cache.bin`? Identify the minimum change so a panic fails CLEAN
       (releases the device, flushes/skips the cache write, exits). *This is the highest-leverage
-      item — it makes every later gate cheap to test.*
+      item — it makes every later gate cheap to test.* **2026-10-16:** uncaught panic hook
+      `process::exit(101)` before Device/Queue drop (OS reclaims the Vulkan device; no
+      `vkDestroyDevice` on the unwind path). Cache write is temp + flush/sync + rename;
+      load rejects a bad header/version/size/checksum and cold-compiles. NVIDIA confirm
+      still required (`AZRA_TEST_PANIC=1`). S0.1 stays its own checkpoint item.
 - **GATE 0 DONE when:** fixes are committed; a deliberate panic exits without wedging the GPU or
   needing a reboot; the app reliably relaunches.
 
@@ -148,3 +152,6 @@ A fix is **not done** until its relevant rows pass.
   SDF+voxel+poly single-G-buffer Display Invariant all verified correct; NO P0 gaps. Remaining (S2.2, fix-order
   = owner's call): [P1] asymmetric/cubic-forcing (= S2.3), [P1] multi-prim → single material (architectural),
   [P2] slot-realloc generation counter, [P2] empty-body mesh_cache cleanup.
+- 2026-10-16 — S0.2 crash-safety implemented (panic hook exits before wgpu teardown;
+  atomic pipeline cache; corrupt cache rejected). GATE 0 is not signed off until a
+  deliberate panic on Windows/NVIDIA exits without wedging the driver.

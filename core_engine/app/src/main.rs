@@ -50,6 +50,7 @@ mod overlay_faces;
 mod edge_detect;
 mod gizmo;
 mod gpu_init; pub(crate) use gpu_init::GpuInitState;
+mod panic_safety;
 // gpu_jobs, gpu_timestamps, gpu_worker live in app_gpu crate
 pub(crate) use app_gpu::{gpu_jobs, gpu_timestamps, gpu_worker, WorkerGpu};
 mod input;
@@ -1088,7 +1089,10 @@ pub(crate) struct PendingLibrarySaveRequest {
 
 impl Drop for FourthLayerApp {
     fn drop(&mut self) {
-        // Save GPU pipeline cache to disk for faster next startup
+        // Uncaught panic: do not call PipelineCache::get_data (driver) and do
+        // not drop the device/queue. The hook exits first; this is the backstop.
+        panic_safety::exit_if_panicking();
+        // Save GPU pipeline cache to disk for faster next startup.
         if let Some(ref gpu) = self.gpu {
             if let Some(ref cache) = *gpu.pipelines.pipeline_cache {
                 gpu_init::save_pipeline_cache(cache);

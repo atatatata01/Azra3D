@@ -234,7 +234,7 @@ pub(crate) fn request_deferred_full_pipeline(gpu: &mut GpuCtx) {
         .spawn(move || {
             flag.store(true, std::sync::atomic::Ordering::SeqCst);
             let t = std::time::Instant::now();
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let result = crate::panic_safety::catch_recoverable(std::panic::AssertUnwindSafe(|| {
                 let cache_ref = (*cache).as_ref();
                 let bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                     label: Some("deferred_bgl_ondemand"),
