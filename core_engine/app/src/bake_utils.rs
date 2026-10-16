@@ -61,6 +61,10 @@ pub(crate) fn collect_all_body_nids(sg: &SceneGraph) -> Vec<NodeId> {
 /// I group / drag a prim into another" bug). Every prim in the subtree is now treated uniformly — no
 /// special base, no per-group exception. (Translation-only: sub-body rotation/scale composition is a
 /// separate follow-up; groups are translation-only today.)
+///
+/// ORDER: an SdfBody's prims are emitted in `resolve_child_order` (the boolean chain), not
+/// primitives-Vec order. A same-body reorder does not move the Vec; collecting the Vec baked
+/// the pre-reorder field into every consumer of this slice (bounds, CPU flat bake, template hash).
 pub(crate) fn collect_body_prims_recursive(sg: &SceneGraph, body_nid: NodeId) -> Vec<SdfPrimitive> {
     let top_origin = match sg.get(body_nid).map(|n| &n.payload) {
         Some(NodePayload::SdfBody { origin, .. }) => *origin,
@@ -72,30 +76,106 @@ pub(crate) fn collect_body_prims_recursive(sg: &SceneGraph, body_nid: NodeId) ->
 }
 
 fn collect_body_prims_inner(sg: &SceneGraph, body_nid: NodeId, top_origin: Vec3, out: &mut Vec<SdfPrimitive>) {
-    if let Some(node) = sg.get(body_nid) {
-        if let NodePayload::SdfBody { primitives, origin, .. } = &node.payload {
-            // Shift this body's prims into the top frame. Only under BODY_LOCAL_PRIMS are positions
-            // per-body-local; in the legacy world-space path collect stays raw and the caller's
-            // `offset_prims_to_local(_, top_origin)` relativises everything (sub-bodies included).
-            let shift = if BODY_LOCAL_PRIMS { *origin - top_origin } else { Vec3::ZERO };
-            out.extend(primitives.iter().filter(|p| p.visible).map(|p| {
-                let mut p = p.clone();
-                p.position += shift;
-                p
-            }));
+    // An SdfBody emits in `resolve_child_order` — the SAME sequence `BodyField::from_graph`
+    // and the GPU bake serializer fold. Reorder permutes only `child_order`; walking the
+    // primitives Vec then `children` kept the pre-reorder chain, so CPU bounds / flat bake /
+    // template identity diverged from the field (REORDER: clipped or torn solid).
+    // Group / Empty are not bodies: they own no prims, and the walk below descends into them.
+    let body_origin = match sg.get(body_nid).map(|n| &n.payload) {
+        Some(NodePayload::SdfBody { origin, .. }) => Some(*origin),
+        _ => None,
+    };
+    if let Some(origin) = body_origin {
+        let shift = if BODY_LOCAL_PRIMS { origin - top_origin } else { Vec3::ZERO };
+        let resolved = sg.resolve_child_order(body_nid);
+        let prims = sg.body_primitives(body_nid).unwrap_or(&[]);
+        let mut consumed = vec![false; prims.len()];
+        let mut seen_child = std::collections::HashSet::new();
+        // Owned steps so the `prims` borrow ends before we recurse into children.
+        enum Step {
+            Prim(SdfPrimitive),
+            Child(NodeId),
         }
+        let mut steps: Vec<Step> = Vec::with_capacity(resolved.len());
+        for entry in resolved {
+            match entry {
+                Ok(i) => {
+                    if let Some(slot) = consumed.get_mut(i) {
+                        *slot = true;
+                    }
+                    if let Some(p) = prims.get(i) {
+                        if p.visible {
+                            let mut sp = p.clone();
+                            sp.position += shift;
+                            steps.push(Step::Prim(sp));
+                        }
+                    }
+                }
+                Err(nid) => {
+                    seen_child.insert(nid);
+                    steps.push(Step::Child(nid));
+                }
+            }
+        }
+        // A prim resolve didn't emit (stale order mid-mutation) is appended, never dropped.
+        for (i, p) in prims.iter().enumerate() {
+            if consumed.get(i).copied().unwrap_or(true) || !p.visible {
+                continue;
+            }
+            let mut sp = p.clone();
+            sp.position += shift;
+            steps.push(Step::Prim(sp));
+        }
+        // Empty (and any container `direct_order_child_nodes` does not list) is not a
+        // child_order slot. Splice it where the children Vec places it relative to the
+        // ordered siblings, so a default (prims-then-bodies) order stays the legacy
+        // sequence and a nested body under Empty cannot vanish from the set.
+        let child_ids = sg.children(body_nid).to_vec();
+        let mut extras: Vec<(usize, NodeId)> = Vec::new();
+        for (idx, &cid) in child_ids.iter().enumerate() {
+            if seen_child.contains(&cid) || !collect_descends(sg, cid) {
+                continue;
+            }
+            extras.push((idx, cid));
+        }
+        for (idx, cid) in extras {
+            let at = steps.iter().position(|s| match s {
+                Step::Child(nid) => {
+                    child_ids.iter().position(|c| c == nid).unwrap_or(usize::MAX) > idx
+                }
+                Step::Prim(_) => false,
+            }).unwrap_or(steps.len());
+            steps.insert(at, Step::Child(cid));
+        }
+        for step in steps {
+            match step {
+                Step::Prim(p) => out.push(p),
+                Step::Child(nid) => {
+                    if collect_descends(sg, nid) {
+                        collect_body_prims_inner(sg, nid, top_origin, out);
+                    }
+                }
+            }
+        }
+        return;
     }
     for &child in sg.children(body_nid) {
-        // Recurse into SdfBody children AND Group/Empty nodes (which may contain bodies)
-        match sg.get(child).map(|n| &n.payload) {
-            Some(NodePayload::SdfBody { .. })
-            | Some(NodePayload::Group { .. })
-            | Some(NodePayload::Empty { .. }) => {
-                collect_body_prims_inner(sg, child, top_origin, out);
-            }
-            _ => {}
+        if collect_descends(sg, child) {
+            collect_body_prims_inner(sg, child, top_origin, out);
         }
     }
+}
+
+/// Containers the recursive collect descends into. SdfObject is NOT one of them — the
+/// pre-child_order collect skipped it (the GPU serializer expands it at serialize time).
+/// Keeping the same set means a reorder fix cannot shrink or grow which prims are collected.
+fn collect_descends(sg: &SceneGraph, nid: NodeId) -> bool {
+    matches!(
+        sg.get(nid).map(|n| &n.payload),
+        Some(NodePayload::SdfBody { .. })
+            | Some(NodePayload::Group { .. })
+            | Some(NodePayload::Empty { .. })
+    )
 }
 
 /// Offset prim positions to body-local space by subtracting body.origin.
@@ -364,28 +444,26 @@ pub(crate) fn compute_body_bake_bounds(
 
     // Tight AABB from prim positions ± per-axis half-extents.
     //
-    // The silhouette is defined by the ADDITIVE prims only (Union / ChamferUnion). Subtract / Intersect
-    // prims can only REMOVE or RESTRICT material — they never create surface OUTSIDE the additive
-    // geometry, so their AABB must NOT expand the bake grid. Including a cutter here makes the body's
-    // bounds chase it when it is dragged outside the body → `aabb_escape` fires every frame → the grid
-    // balloons (observed ±13 world units) → at fixed resolution the body is grossly under-sampled → a
-    // coarse "trailing cube" pops in during the drag and only clears on the release re-tighten. The
-    // cutter still carves correctly: its overlap with the additive geometry is contained in these
-    // bounds by construction (nothing to remove outside them), and any smooth-cut fillet rounds INWARD,
-    // covered by the margin below.
+    // The slice is the boolean chain (`collect_body_prims_recursive` walks `resolve_child_order`).
+    // The FIRST visible prim SEEDS the fold regardless of its stored op (`field_eval` `build_scope`:
+    // `fold_prim(None, ..)`). A Subtract/Intersect moved to the base slot becomes the solid — its
+    // AABB must be inside the grid or the rebake clips that solid (REORDER: the mesh no longer
+    // matches the chain until something forces a clean grid that happens to still cover it).
+    // Every LATER non-additive prim only removes or restricts material, so it must NOT expand the
+    // grid: a cutter dragged outside the body would `aabb_escape` every frame and balloon the
+    // volume. A smooth-cut fillet rounds inward, covered by the margin below.
     //
-    // ORDER-INDEPENDENCE (fixes the "nested-body mesh breaks on drag, needs a resolution change" bug):
-    // fold the additive set REGARDLESS of position in the list — union is commutative, so the bounds are
-    // a pure function of the additive set. Moving a prim into a sub-body / reordering leaves the bounds
-    // IDENTICAL when the geometry is identical. The previous code always counted the FIRST visible prim
-    // as the base (its AABB included even if it was a Subtract — the very thing the paragraph above says
-    // must never happen), so a structural edit that changed which prim came first made the grid bounds
-    // jump → the resident volume's cached bounds/resolution went stale → the Object-Mode DC mesh built
-    // from mismatched data (blank/broken) until `invalidate_all` (the resolution slider) rebaked clean.
+    // Two hard-unions swapped stay the same box (both additive). A cutter that stays a cutter
+    // (not the seed) stays out of the box. Only a chain-base change moves the box, and that
+    // change is the field.
     let mut aabb_min = Vec3::splat(f32::MAX);
     let mut aabb_max = Vec3::splat(f32::MIN);
+    let mut seeded = false;
     for p in prims {
-        if !p.visible || !p.operation.is_additive() { continue; }
+        if !p.visible { continue; }
+        let counts = !seeded || p.operation.is_additive();
+        seeded = true;
+        if !counts { continue; }
         let he = p.bounding_aabb_half_extents();
         aabb_min = aabb_min.min(p.position - he);
         aabb_max = aabb_max.max(p.position + he);
@@ -1012,30 +1090,33 @@ mod tests {
         assert!(at(&g0, res, gmin, gmax, Vec3::new(0.0, 1.0, 0.0)) > 0.0, "no-mirror +Y empty");
     }
 
-    /// ORDER-INVARIANCE: compute_body_bake_bounds must be a pure function of the ADDITIVE prim set —
-    /// reordering prims (e.g. dragging one into a sub-body, which flips which prim comes first) must NOT
-    /// move the grid bounds when the geometry is unchanged. The old "first visible prim = base" code let
-    /// a Subtract cutter become the base and expand the bounds, so a structural edit made the grid
-    /// bounds jump → the resident volume went stale → the Object-Mode mesh broke until a resolution
-    /// change. This locks the invariant that fixes it (and that a cutter never balloons the grid).
+    /// CHAIN BASE: the slice is eval order. The first visible prim seeds the solid even when its
+    /// stored op is Subtract — that is the fold (`fold_prim(None, …)`). A cutter that is NOT the
+    /// seed must not balloon the grid. Two additive prims swapped leave the box unchanged.
     #[test]
-    fn bake_bounds_order_invariant_under_reorder() {
+    fn bake_bounds_follow_chain_base() {
         use core_math::primitives::BooleanOp;
-        let mut base = box_prim(Vec3::ZERO, Vec3::splat(0.5)); // Union silhouette
+        let mut base = box_prim(Vec3::ZERO, Vec3::splat(0.5));
         base.operation = BooleanOp::Union { k: 0.0 };
-        let mut cutter = box_prim(Vec3::new(5.0, 0.0, 0.0), Vec3::splat(0.5)); // far-away cutter
+        let mut cutter = box_prim(Vec3::new(5.0, 0.0, 0.0), Vec3::splat(0.5));
         cutter.operation = BooleanOp::Subtract { k: 0.0 };
 
-        let ab = compute_body_bake_bounds(&[base.clone(), cutter.clone()], 0, Vec3::ZERO, 0.0);
-        // Reorder so the SUBTRACT cutter is FIRST — exactly what a group/reparent can produce.
-        let ba = compute_body_bake_bounds(&[cutter, base], 0, Vec3::ZERO, 0.0);
+        let seed_then_cut = compute_body_bake_bounds(&[base.clone(), cutter.clone()], 0, Vec3::ZERO, 0.0);
+        assert!(seed_then_cut.1.x < 2.0, "a cutter that stays a cutter must not balloon, got max.x={}", seed_then_cut.1.x);
 
+        // The subtract is now the chain seed: it IS the solid, and the union adds beside it.
+        let cut_is_seed = compute_body_bake_bounds(&[cutter, base.clone()], 0, Vec3::ZERO, 0.0);
+        assert!(cut_is_seed.1.x > 4.0, "chain-base subtract must be inside the grid, got {cut_is_seed:?}");
+        assert!(cut_is_seed.0.x < 1.0, "the later union must still contribute, got {cut_is_seed:?}");
+
+        let mut other = box_prim(Vec3::new(3.0, 0.0, 0.0), Vec3::splat(0.4));
+        other.operation = BooleanOp::Union { k: 0.0 };
+        let u1 = compute_body_bake_bounds(&[base.clone(), other.clone()], 0, Vec3::ZERO, 0.0);
+        let u2 = compute_body_bake_bounds(&[other, base], 0, Vec3::ZERO, 0.0);
         assert!(
-            (ab.0 - ba.0).length() < 1e-6 && (ab.1 - ba.1).length() < 1e-6,
-            "bounds must be identical regardless of prim order (additive set unchanged): {ab:?} vs {ba:?}"
+            (u1.0 - u2.0).length() < 1e-5 && (u1.1 - u2.1).length() < 1e-5,
+            "swapping two unions must not move bounds: {u1:?} vs {u2:?}"
         );
-        // Cutter-no-balloon preserved: the cutter at x=5 must NOT expand the bounds.
-        assert!(ab.1.x < 2.0, "far cutter must not balloon the grid, got max.x={}", ab.1.x);
     }
 
     /// NESTED-ORIGIN COMPOSITION (the "grouped/nested geometry vanishes" root cause):
@@ -1099,5 +1180,140 @@ mod tests {
         let g = bake_body_grid_region(&prims, res, gmin, gmax, base, [0, 0, 0], [res, res, res], 0b010, 0, Vec3::ZERO);
         assert!(at(&g, res, gmin, gmax, Vec3::new(0.0, 1.0, 0.0)) < 0.0,
             "partial re-bake must keep the mirrored +Y half solid");
+    }
+
+    fn sphere(uid: u32, pos: Vec3, radius: f32, op: core_math::primitives::BooleanOp) -> SdfPrimitive {
+        let mut p = SdfPrimitive::new(format!("S{uid}"), SdfShape::Sphere { radius }, pos);
+        p.prim_uid = uid;
+        p.operation = op;
+        p
+    }
+
+    fn chain_body(prims: Vec<SdfPrimitive>) -> (core_math::scene_graph::SceneGraph, core_math::scene_graph::NodeId) {
+        use core_math::primitives::{BlendProfile, PbrMaterial, BooleanOp};
+        use core_math::scene_graph::{SceneGraph, NodePayload};
+        use glam::Quat;
+        let mut sg = SceneGraph::new();
+        let body = sg.add_child(sg.root(), NodePayload::SdfBody {
+            name: "Body".into(), primitives: prims, mesh_cache_id: None,
+            body_op: BooleanOp::Union { k: 0.0 }, origin: Vec3::ZERO,
+            body_rotation: Quat::IDENTITY, body_scale: Vec3::ONE,
+            mirror_flags: 0, mirror_sign: 0, mirror_center: Vec3::ZERO, bevel_radius: 0.0,
+            blend_profile: BlendProfile::default(), material: PbrMaterial::default(),
+            child_order: Vec::new(),
+            mesh_modifiers: Vec::new(), field_modifiers: Vec::new(),
+        });
+        sg.ensure_body_child_order(body);
+        (sg, body)
+    }
+
+    fn prim_uids(sg: &core_math::scene_graph::SceneGraph, body: core_math::scene_graph::NodeId) -> Vec<u32> {
+        collect_body_prims_recursive(sg, body).iter().map(|p| p.prim_uid).collect()
+    }
+
+    /// REORDER: moving a Subtract to the chain base changes the field (the seed is solid
+    /// regardless of its stored op). The collector and the flat CPU bake must follow that
+    /// chain, and the grid bounds must cover the new solid. Before the fix, collect walked
+    /// the primitives Vec, so the CPU bake stayed on the pre-reorder field and the bounds
+    /// skipped the Subtract — the baked solid was clipped.
+    #[test]
+    fn reorder_subtract_to_base_matches_field_and_bounds() {
+        use core_math::field_eval::BodyField;
+        use core_math::primitives::BooleanOp;
+        use core_math::scene_graph::BodyChildRef;
+
+        let (mut sg, body) = chain_body(vec![
+            sphere(100, Vec3::ZERO, 1.0, BooleanOp::Union { k: 0.0 }),
+            sphere(101, Vec3::new(2.0, 0.0, 0.0), 0.8, BooleanOp::Subtract { k: 0.0 }),
+        ]);
+        let probe = Vec3::new(2.0, 0.0, 0.0);
+        let before = BodyField::from_graph(&sg, body).eval_or(probe, 100.0);
+        assert!(before > 0.0, "cutter is not solid while it is not the seed, got {before}");
+        assert_eq!(prim_uids(&sg, body), vec![100, 101]);
+
+        sg.reorder_child_order(body, BodyChildRef::Prim(101), 0);
+        let field = BodyField::from_graph(&sg, body);
+        let after = field.eval_or(probe, 100.0);
+        assert!(after < 0.0, "subtract moved to the base slot must be solid at its center, got {after}");
+        assert_eq!(prim_uids(&sg, body), vec![101, 100], "collect must follow child_order, not the Vec");
+
+        let collected = collect_body_prims_recursive(&sg, body);
+        let (bmin, bmax) = compute_body_bake_bounds(&collected, 0, Vec3::ZERO, 0.0);
+        assert!(bmin.x < 1.3 && bmax.x > 2.7, "grid must cover the new seed at x=2, got {bmin:?}..{bmax:?}");
+
+        let (gmin, gmax) = (Vec3::splat(-2.0), Vec3::new(4.0, 2.0, 2.0));
+        let grid = bake_body_grid(&collected, 24, gmin, gmax, 0, 0, Vec3::ZERO);
+        let baked = at(&grid, 24, gmin, gmax, probe);
+        assert!(baked < 0.0, "CPU bake of the collected slice must be the reordered field, got {baked}");
+        let direct = field.eval_or(probe, 100.0);
+        assert!((baked - direct).abs() < 0.35, "flat bake {baked} vs field {direct}");
+
+        let h_reordered = compute_template_hash(&sg, body).unwrap();
+        sg.reorder_child_order(body, BodyChildRef::Prim(101), 1);
+        let h_restored = compute_template_hash(&sg, body).unwrap();
+        assert_ne!(h_reordered, h_restored, "template identity must see the boolean chain");
+    }
+
+    /// A body nested under Empty is not a child_order slot. Collect must still emit it
+    /// (the set cannot shrink) and a default order stays prims-then-nested.
+    #[test]
+    fn collect_keeps_body_nested_under_empty() {
+        use core_math::primitives::{BlendProfile, PbrMaterial, BooleanOp};
+        use core_math::scene_graph::{SceneGraph, NodePayload};
+        use glam::Quat;
+        let body = |name: &str, prims: Vec<SdfPrimitive>| NodePayload::SdfBody {
+            name: name.into(), primitives: prims, mesh_cache_id: None,
+            body_op: BooleanOp::Union { k: 0.0 }, origin: Vec3::ZERO,
+            body_rotation: Quat::IDENTITY, body_scale: Vec3::ONE,
+            mirror_flags: 0, mirror_sign: 0, mirror_center: Vec3::ZERO, bevel_radius: 0.0,
+            blend_profile: BlendProfile::default(), material: PbrMaterial::default(),
+            child_order: Vec::new(),
+            mesh_modifiers: Vec::new(), field_modifiers: Vec::new(),
+        };
+        let mut sg = SceneGraph::new();
+        let top = sg.add_child(sg.root(), body("Top", vec![
+            sphere(10, Vec3::ZERO, 0.5, BooleanOp::Union { k: 0.0 }),
+        ]));
+        let empty = sg.add_child(top, NodePayload::Empty { name: "Slot".into() });
+        let _nested = sg.add_child(empty, body("Nested", vec![
+            sphere(20, Vec3::X, 0.4, BooleanOp::Union { k: 0.0 }),
+        ]));
+        sg.ensure_body_child_order(top);
+        assert_eq!(prim_uids(&sg, top), vec![10, 20]);
+    }
+
+    /// Undo/redo of a reorder is the graph snapshot `transaction()` already takes.
+    /// Restoring it must put the chain, the field, and the collected slice back.
+    #[test]
+    fn reorder_undo_redo_restores_field() {
+        use core_math::field_eval::BodyField;
+        use core_math::primitives::BooleanOp;
+        use core_math::scene_graph::BodyChildRef;
+
+        let mut app = crate::FourthLayerApp::new_headless();
+        let (sg, body) = chain_body(vec![
+            sphere(100, Vec3::ZERO, 1.0, BooleanOp::Union { k: 0.0 }),
+            sphere(101, Vec3::new(2.0, 0.0, 0.0), 0.8, BooleanOp::Subtract { k: 0.0 }),
+        ]);
+        app.scene.scene_graph = sg;
+        app.sync_flat_cache();
+        let probe = Vec3::new(2.0, 0.0, 0.0);
+        let eval = |app: &crate::FourthLayerApp| {
+            BodyField::from_graph(&app.scene.scene_graph, body).eval_or(probe, 100.0)
+        };
+        let before = eval(&app);
+        let before_uids = prim_uids(&app.scene.scene_graph, body);
+        app.transaction("Reorder prim", |s| {
+            s.reorder_child_in_body(body, BodyChildRef::Prim(101), 0);
+        });
+        let reordered = eval(&app);
+        assert!(before > 0.0 && reordered < 0.0, "reorder must change the field ({before} -> {reordered})");
+        assert_eq!(prim_uids(&app.scene.scene_graph, body), vec![101, 100]);
+        app.undo();
+        assert!((eval(&app) - before).abs() < 1e-4, "undo must restore the pre-reorder field");
+        assert_eq!(prim_uids(&app.scene.scene_graph, body), before_uids);
+        app.redo();
+        assert!((eval(&app) - reordered).abs() < 1e-4, "redo must restore the reordered field");
+        assert_eq!(prim_uids(&app.scene.scene_graph, body), vec![101, 100]);
     }
 }

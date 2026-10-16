@@ -2110,14 +2110,19 @@ impl AzraApp {
         // Bound the sweep to the SDF body's world AABB mapped into grid-local space (so a small stamp
         // doesn't scan the whole grid). Built from the body's body-local prim bounds → world → grid-local.
         let bounds_local: Option<[glam::Vec3; 2]> = (|| {
-            let (lmin, lmax) = match self.scene.scene_graph.get(sdf_nid)?.payload {
-                NodePayload::SdfBody { ref primitives, mirror_flags, mirror_center, bevel_radius, .. } => {
-                    let vis: Vec<_> = primitives.iter().filter(|p| p.visible).cloned().collect();
-                    if vis.is_empty() { return None; }
-                    crate::bake_utils::compute_body_bake_bounds(&vis, mirror_flags, mirror_center, bevel_radius)
+            let (mirror_flags, mirror_center, bevel_radius) = match self.scene.scene_graph.get(sdf_nid)?.payload {
+                NodePayload::SdfBody { mirror_flags, mirror_center, bevel_radius, .. } => {
+                    (mirror_flags, mirror_center, bevel_radius)
                 }
                 _ => return None,
             };
+            // Eval-order slice (child_order), not the primitives Vec. The first visible prim
+            // is the chain seed; a reorder that makes a Subtract the base must still bound it.
+            let prims = crate::bake_utils::collect_body_prims_recursive(&self.scene.scene_graph, sdf_nid);
+            if prims.is_empty() { return None; }
+            let (lmin, lmax) = crate::bake_utils::compute_body_bake_bounds(
+                &prims, mirror_flags, mirror_center, bevel_radius,
+            );
             let body_world = self.scene.scene_graph.effective_body_transform(sdf_nid)?;
             // Transform all 8 corners of the body-local AABB → world → grid-local, take the enclosure.
             let mut gmin = glam::Vec3::splat(f32::MAX);

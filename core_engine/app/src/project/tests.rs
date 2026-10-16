@@ -306,6 +306,52 @@ mod child_order_save_tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// REORDER save/load: a Subtract moved to the chain base must come back with the same
+    /// child_order, the same collected uid sequence, and the same field sample. child_order
+    /// is #[serde(skip)]; the FL4ORDER side-channel is what keeps the chain.
+    #[test]
+    fn reorder_subtract_round_trips_field() {
+        use core_math::field_eval::BodyField;
+        use glam::Vec3;
+        let (mut sg, parent, _sub) = graph_with_body();
+        // Replace the three zero-spheres with a union + a subtract whose center is outside the union.
+        if let Some(prims) = sg.body_primitives_mut(parent) {
+            prims.clear();
+            let mut base = SdfPrimitive::new("Base".into(), SdfShape::Sphere { radius: 1.0 }, Vec3::ZERO);
+            base.prim_uid = 100;
+            base.operation = BooleanOp::Union { k: 0.0 };
+            let mut cut = SdfPrimitive::new("Cut".into(), SdfShape::Sphere { radius: 0.8 }, Vec3::new(2.0, 0.0, 0.0));
+            cut.prim_uid = 101;
+            cut.operation = BooleanOp::Subtract { k: 0.0 };
+            prims.push(base);
+            prims.push(cut);
+        }
+        sg.ensure_body_child_order(parent);
+        sg.reorder_child_order(parent, BodyChildRef::Prim(101), 0);
+        let probe = Vec3::new(2.0, 0.0, 0.0);
+        let before = BodyField::from_graph(&sg, parent).eval_or(probe, 100.0);
+        assert!(before < 0.0, "saved chain must already be the reordered solid, got {before}");
+        let before_uids: Vec<u32> = crate::bake_utils::collect_body_prims_recursive(&sg, parent)
+            .iter().map(|p| p.prim_uid).collect();
+        assert_eq!(before_uids, vec![101, 100]);
+
+        let mut proj = project_with(sg);
+        proj.child_orders = proj.scene_graph.as_ref().unwrap().collect_body_child_orders();
+        let dir = std::env::temp_dir().join(format!("azra_reorder_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("reorder.fl4");
+        save_binary(&path, &proj).expect("save");
+        let loaded = load_binary(&path).expect("load");
+        let mut g = loaded.scene_graph.clone().unwrap();
+        g.apply_body_child_orders(&loaded.child_orders);
+        let after = BodyField::from_graph(&g, parent).eval_or(probe, 100.0);
+        let after_uids: Vec<u32> = crate::bake_utils::collect_body_prims_recursive(&g, parent)
+            .iter().map(|p| p.prim_uid).collect();
+        assert_eq!(after_uids, before_uids, "collected chain must survive save/load");
+        assert!((after - before).abs() < 1e-5, "field sample must be identical after round-trip ({before} vs {after})");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// BodyKey stability: NodeId round-trips identically across save->load (so the side-channel key
     /// resolves to the same node). Proven by test 2 already (apply keyed by node id worked), but
     /// asserted explicitly here for clarity.
