@@ -6,20 +6,66 @@ A 3D modeling, sculpting and rendering application written in Rust (wgpu): SDF, 
 
 > Status: early and moving fast. Windows is the primary platform. **There are no prebuilt downloads yet**: AZRA must be built from source (below), and it has not been tested on other machines than the author's.
 
-## Build and run
+## Installation (build from source)
+
+### 1. System requirements
+
+- **Windows 10 or 11, 64-bit** (the only platform the author uses; Linux and macOS are untested).
+- A GPU with **Vulkan or DX12** support and up-to-date graphics drivers. Sculpting and path tracing are demanding: a recent dedicated GPU is strongly recommended.
+- Several GB of free disk space (the build output alone is large).
+- An internet connection **during the first build**: one dependency downloads its C++ source while building.
+
+### 2. Install the tools (once)
+
+1. **Rust** (stable): install from https://rustup.rs and accept the default (MSVC) toolchain.
+2. **Visual Studio 2022 Build Tools** (or Visual Studio) with the workload **"Desktop development with C++"**: https://visualstudio.microsoft.com/downloads/ (the C++ compiler, linker and Windows SDK are required).
+3. **CMake**: https://cmake.org/download/ (tick "Add CMake to the system PATH"). The CMake bundled with Visual Studio works too, but it is usually *not* on your PATH.
+4. **Git**: https://git-scm.com/downloads
+
+Open a **new** terminal and check that these four commands work: `rustc --version`, `cargo --version`, `cmake --version`, `git --version`.
+
+### 3. Get the code, build and run
+
+```bash
+git clone https://github.com/atatatata01/Azra3D.git
+cd Azra3D/core_engine
+cargo run -p app --release
+```
+
+The first build compiles several hundred dependencies and can take a long time; later builds are much faster. The program is written to `core_engine/target/release/app.exe`, so you can start it again without rebuilding.
+
+The newer interface is switched on with an environment variable (the previous interface is the default):
+
+```bash
+# PowerShell
+$env:AZRA_UI = "v2"; cargo run -p app --release
+```
+
+```bash
+# Command Prompt
+set AZRA_UI=v2 && cargo run -p app --release
+```
+
+User data is stored in `%LOCALAPPDATA%\Azra`. The `.bat` scripts at the repository root are the author's personal helpers (they contain machine-specific paths): use the commands above instead.
+
+### 4. Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `program not found` / cmake error while building `manifold-csg-sys` | CMake is not on your PATH. Install it (step 2) or build from the *x64 Native Tools Command Prompt for VS*, then open a new terminal. |
+| `git clone manifold3d failed` | The build could not download the C++ source: check your internet connection and that `git` works, then run the build again. |
+| `link.exe` not found or other linker errors | The "Desktop development with C++" workload is missing (step 2). |
+| The window does not open or reports a GPU error | Update your graphics drivers and make sure the GPU supports Vulkan or DX12. |
+| The viewport looks flat | No environment light is bundled: load an HDRI (see "Content" below). |
+
+### Run the tests
 
 ```bash
 cd core_engine
-cargo run -p app --release
 cargo test -p core_math
 ```
 
-Requirements:
-
-- a recent stable Rust toolchain;
-- a GPU with Vulkan or DX12 support;
-- **CMake and a C++ compiler** (on Windows: Visual Studio with the C++ workload). One dependency (`manifold-csg-sys`) compiles a C++ library;
-- **git and an internet connection at build time**: that dependency downloads its C++ source (Manifold v3.5.1) while building.
+The test suite is not fully green yet: a handful of tests are known to fail. Please check the open issues before reporting them.
 
 ### Optional: OptiX path tracer
 
