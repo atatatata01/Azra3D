@@ -22,7 +22,7 @@ The `cuda_render` crate needs NVIDIA's OptiX headers, which are proprietary and 
 
 ### Content (materials, environments, matcaps)
 
-The app ships with a neutral gradient environment only. Material and environment libraries are not bundled:
+No content library is bundled, including environments: until you load an HDRI the viewport has no image-based lighting. Add your own content, only with assets whose license allows your use:
 
 - PBR materials: free CC0 sets from [ambientCG](https://ambientcg.com), placed under `assets/PBR/<Name>/`.
 - HDR environments: any `.hdr` file placed under `assets/HDR_Labs/<Name>/`.
