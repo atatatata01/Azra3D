@@ -46,7 +46,9 @@ $env:AZRA_UI = "v2"; cargo run -p app --release
 set AZRA_UI=v2 && cargo run -p app --release
 ```
 
-User data is stored in `%LOCALAPPDATA%\Azra`. The `.bat` scripts at the repository root are the author's personal helpers (they contain machine-specific paths): use the commands above instead.
+On Windows you can also **double-click `Run_UIv2_Release.bat`** at the repository root: it checks that Rust and CMake are available, builds if needed, and starts AZRA with the newer interface.
+
+User data is stored in `%LOCALAPPDATA%\Azra`.
 
 ### 4. Troubleshooting
 

@@ -7,7 +7,7 @@ Thanks for helping. The maintainer is Dimitri Neron; all changes are merged by t
 1. Open an issue first for anything larger than a small fix.
 2. Fork, branch off `master`, make one focused change per pull request.
 3. Run `cd core_engine && cargo build -p app` and `cargo test -p core_math` (and `cargo test -p graphics` after shader changes).
-4. Read `CLAUDE.md` / `ARCHITECTURE.md` for the project's architecture rules.
+4. Read `ARCHITECTURE.md` and the project's working rules in `docs/internal/CLAUDE.md` (internal planning notes live in `docs/internal/`).
 5. Commit under your real name or a stable handle, with a `Signed-off-by:` line (`git commit -s`).
 6. Open a pull request. `master` is protected: nothing merges without maintainer approval.
 
