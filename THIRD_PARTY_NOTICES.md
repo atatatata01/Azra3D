@@ -5,6 +5,7 @@
 | Component | Where | License |
 |---|---|---|
 | Geist and Geist Mono fonts, Copyright 2024 The Geist Project Authors | `core_engine/app/assets/fonts/` | SIL Open Font License 1.1 (`core_engine/app/assets/fonts/OFL.txt`) |
+| Six HDRIs from [Poly Haven](https://polyhaven.com): `brown_photostudio_02`, `blue_photo_studio`, `blocky_photo_studio`, `abandoned_parking`, `abandoned_tank_farm_04` (Sergej Majboroda) and `alps_field` (Andreas Mischok), 2K, downloaded 2026-10-17, unmodified | `assets/HDR_Labs/PolyHaven/` | CC0 1.0 Universal (public domain) per https://polyhaven.com/license |
 
 ## Generated content (no third-party license)
 
