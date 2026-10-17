@@ -11,6 +11,10 @@
 
 The matcaps in `assets/Matcaps/` and the environments in `assets/HDR_Labs/HDR_Gradient/` are produced by `tools/gen_default_content.py` from mathematical formulas. They contain no third-party images and are covered by the repository's license.
 
+## Downloadable content (not stored in this repository)
+
+`tools/fetch_content.py` downloads the ambientCG (CC0) materials listed in `tools/content_manifest.json` into `assets/PBR/` on the user's machine and records each download (asset, resolution, date, URL) in `assets/PBR/SOURCES.md`. Those files are git-ignored and are not part of this repository.
+
 ## Free content sources checked (not bundled)
 
 On 2026-10-16 the published terms of [ambientCG](https://docs.ambientcg.com/license/) (CC0 1.0) and [Poly Haven](https://polyhaven.com/license) (CC0) allowed redistribution of their assets inside software, with no attribution required. Those terms can change: check them again before bundling any file, and keep a record of the exact asset and download date.

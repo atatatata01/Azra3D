@@ -1,0 +1,16 @@
+{
+  "_comment": "Curated CC0 content. ambientCG assets are public domain (https://docs.ambientcg.com/license/). Edit this list to add or remove assets, then run tools/fetch_content.py.",
+  "ambientcg_materials": [
+    "Metal009",
+    "Metal007",
+    "Metal011",
+    "Metal012",
+    "Metal048B",
+    "Fingerprints009",
+    "Fingerprints002",
+    "Wood096",
+    "Clay005",
+    "Fabric085",
+    "Bricks105"
+  ]
+}
